@@ -2,11 +2,13 @@
 
 **WT\* did I just ship?**
 
-You shipped all week and can't name one thing you did. Not last week, not yesterday.
+Agents made you faster than your own memory. A good week now means more pull requests
+than you can name by Friday, which is a great problem right up until someone asks what
+you've been working on.
 
-`standup` reads the Claude Code sessions already sitting on your machine and turns them
-into one page: what you shipped, which PRs and tickets came out of it, and what you
-actually asked for. Open it before standup.
+`standup` reads the Claude Code sessions already sitting on your machine and hands the
+week back to you: what shipped, which PRs and tickets came out of it, and what you
+actually asked for. Take the credit you already earned.
 
 No API keys. No account. Nothing leaves your machine.
 

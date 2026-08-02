@@ -1505,9 +1505,10 @@ def cmd_report(argv: list[str]) -> int:
     body = f"""{SPRITE}<div class="wrap">
 <header class="rise" style="--i:0">
 <h1><em class="wt">WT*</em> did I just <span>ship</span>?</h1>
-<p class="pitch"><b>AI burnout is real.</b> You shipped all week and cannot name one thing you did.
-Not last week, not yesterday. This reads your own sessions back to you: what rolled out,
-which tickets you touched, what you actually asked the agent. Walk into standup ready.</p>
+<p class="pitch"><b>You are shipping faster than you can remember.</b> Agents turned the week into a
+blur of pull requests, tickets and half recalled fixes, which is the good kind of problem.
+This is the week handed back to you: what shipped, what it touched, and what you actually
+asked for. Take the credit you already earned.</p>
 <p class="sub">Last {weeks} weeks &middot; {span_days} days of history &middot; updated {datetime.now():%a %-d %b, %H:%M}</p>
 </header>
 <div class="tiles rise" style="--i:1">

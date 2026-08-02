@@ -50,10 +50,15 @@ Pick one or the other. Doing both records every session twice.
 ## Updating
 
 ```
-claude plugin update standup
+claude plugin marketplace update standup
+claude plugin update standup@standup
 ```
 
-Restart Claude Code afterwards.
+Then restart Claude Code. Nothing updates on its own, and starting a new session is not
+enough on its own either.
+
+The `@standup` suffix is the marketplace name and it is required here. Plain
+`claude plugin update standup` fails with `Plugin "standup" not found`.
 
 ## What you get
 

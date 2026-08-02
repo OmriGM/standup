@@ -2,12 +2,13 @@
 
 **WT\* did I just ship?**
 
-If you run a few Claude Code sessions a day, you genuinely cannot remember. `standup`
-reads the transcripts you already have on disk and turns them into one page: every
-session, ranked by what it delivered, grouped by week, with the PRs and tickets it
-produced.
+You shipped all week and can't name one thing you did. Not last week, not yesterday.
 
-No API keys. No account. No network calls. It reads files you already have.
+`standup` reads the Claude Code sessions already sitting on your machine and turns them
+into one page: what you shipped, which PRs and tickets came out of it, and what you
+actually asked for. Open it before standup.
+
+No API keys. No account. Nothing leaves your machine.
 
 <!-- Add a screenshot at docs/standup.png and uncomment:
 ![standup](docs/standup.png)
@@ -15,23 +16,23 @@ No API keys. No account. No network calls. It reads files you already have.
 
 ## Install
 
-As a plugin:
-
 ```
 /plugin marketplace add OmriGM/standup
 /plugin install standup
 ```
 
-Then seed it from the history you already have:
+Then build your page from the history you already have:
 
 ```
 /standup
 ```
 
-<details>
-<summary>Or as a single file, with no plugin</summary>
+That's it. From now on it updates itself every time a session ends.
 
-It is one Python file with no dependencies beyond the standard library.
+<details>
+<summary>Prefer a single file with no plugin?</summary>
+
+One Python file, nothing to install alongside it.
 
 ```bash
 mkdir -p ~/.claude/hooks
@@ -42,102 +43,102 @@ python3 ~/.claude/hooks/standup.py backfill
 python3 ~/.claude/hooks/standup.py report
 ```
 
-`install` registers the SessionEnd hook in `~/.claude/settings.json`. Do not do this
-*and* install the plugin, or every session will be recorded twice.
+Pick one or the other. Doing both records every session twice.
 
 </details>
 
-## How it works
+## Updating
 
-A `SessionEnd` hook appends one line per session to an append-only JSONL ledger, then
-rebuilds a self-contained HTML page. Everything is derived from the transcript, which
-already carries Claude Code's own session title and structured PR links, so recording
-costs nothing but a file read.
+```
+claude plugin update standup
+```
 
-- **Impact ranking.** Each session is scored by what it shipped: 40 points a PR, 12 a
-  ticket, then at most 20 for focused time and 8 for depth of back-and-forth. The caps
-  are the point. A four hour session with nothing to show for it can never outrank one
-  that opened a PR.
-- **Real working time.** Gaps over 10 minutes are not counted, so an overnight pause is
-  not billed as effort. A session resumed across weeks is split across the weeks it was
-  actually worked.
-- **PRs opened per week**, counting each PR once, in the week it first appears.
-- **Sort** by recency, impact, duration or token count. **Hide** sessions you never want
-  to see again, and unhide them later.
-- **Click any card** to open it: repo and branch, active time against elapsed time, turn
-  count, the token split and the full opening prompt.
-- **Token counts** per session and per week, split between generated output, fresh
-  input, cache writes and cache reads.
+Restart Claude Code afterwards.
 
-## Configuration
+## What you get
+
+- **Your week, in one page.** Sessions grouped by week, newest first.
+- **A score for each one**, so the sessions that shipped something rise to the top. A PR
+  is worth far more than hours spent. A long session with nothing to show for it can
+  never outrank one that opened a pull request.
+- **Real working time.** Long pauses aren't counted, so an overnight gap isn't billed as
+  effort.
+- **PRs and tickets** on every card, linked, with a chart of pull requests per week.
+- **Sort** by newest, score, length or tokens. **Hide** the sessions you don't care about.
+- **Click a card** for the detail: repo and branch, time, turns, tokens, and the full
+  thing you originally asked.
+- **A one-line summary of each week**, if you want it. See below.
+
+## Settings
 
 Optional. Create `~/.claude/standup/config.json`:
 
 ```json
 {
-  "ticket_url": "https://linear.app/your-org/issue/{key}",
-  "ignore_prefixes": ["INC", "SEV"],
-  "model": "haiku",
+  "ticket_url": "https://linear.app/your-team/issue/{key}",
   "week_start": "monday",
-  "embed_images": false
+  "ignore_prefixes": ["INC"],
+  "embed_images": false,
+  "model": "haiku"
 }
 ```
 
-| Key | Meaning |
+| Setting | What it does |
 | --- | --- |
-| `week_start` | `monday` (ISO, the default) or `sunday`. Your working week is not everyone's, and a Sunday to Thursday week groups differently. Time is stored per day, so changing this regroups your existing history rather than needing a re-record. |
-| `ticket_url` | Template with a `{key}` placeholder. Works with Linear, Jira, GitHub Issues, Shortcut, anything with a predictable URL. Unset means tickets render as plain text instead of guessing at a link. |
-| `ignore_prefixes` | Extra `ABC-123` shaped prefixes that are not tickets in your world. Universal false positives like `CVE` and `RFC` are already excluded. |
-| `model` | Model used by `--summaries`. Defaults to `haiku`. |
-| `embed_images` | Show screenshots you pasted into a prompt, as thumbnails on the card. Off by default, see below. |
+| `ticket_url` | Makes ticket codes clickable. Put `{key}` where the ticket code goes. Works with Linear, Jira, GitHub Issues, anything with a predictable link. Leave it out and tickets show as plain text. |
+| `week_start` | `monday` or `sunday`. If your week runs Sunday to Thursday, say so and the page regroups. |
+| `ignore_prefixes` | Codes that look like tickets but aren't, in your world. Common ones like `CVE` are already ignored. |
+| `embed_images` | Show screenshots you pasted into a prompt. Off by default, see Privacy. |
+| `model` | Which model writes the weekly summaries. Defaults to `haiku`. |
 
-Absolute file paths in a prompt are always collapsed to their filename, so a card reads
-`Can you help me verify this? pasted-1.png` rather than a wall of path.
+## Weekly summaries
 
-`embed_images` goes further and inlines the picture itself. It is off by default for one
-reason: only a base64 data URI renders reliably (Firefox refuses `file://` subresources
-outside the document's own directory), and that bakes your screenshots into a page the
-privacy section tells you not to share. It also grows the page by about a third more than
-each image's size on disk.
-
-Pull request icons are chosen from the PR's own host, so GitHub gets its mark and every
-other forge gets a neutral pull-request glyph.
-
-## Week summaries
-
-`report --summaries` writes a one sentence recap for each week and rewrites every card's
-title and description into something readable. This is the only feature that calls a
-model. It shells out to your local `claude` CLI, so it uses the auth you already have and
-needs no API key.
+One sentence per week, plus a cleaner title and description on every card:
 
 ```bash
 python3 ~/.claude/hooks/standup.py report --summaries
 ```
 
-Results are cached per week and only regenerate when a week gains new sessions.
+This is the only part that uses a model. It runs through the `claude` command you already
+have, so there's no key to set up. Results are saved and only redone when a week gains
+new sessions.
 
 ## Privacy
 
-Worth reading before you use this, and especially before you share anything it produces.
+Short version: everything stays on your machine, and the page you generate contains your
+whole history, so don't send the file to anyone.
 
-- **Everything is local by default.** Recording never touches the network.
-- **The ledger stores the verbatim opening prompt of every session**, along with repo
-  names and branch names, at `~/.claude/standup/ledger.jsonl`.
-- **The generated HTML embeds all of that data.** It is not a template that reads a data
-  file, it is a single file with everything baked in. Sending someone the page means
-  sending them your entire history. Share a screenshot instead.
-- **`--summaries` is the one thing that sends data off your machine.** It passes session
-  titles and the first 240 characters of each opening prompt to a model. It is opt-in
-  behind a flag and never runs automatically from the hook.
+- Recording never touches the network.
+- Your session history, including the opening message of every session, is saved at
+  `~/.claude/standup/sessions.jsonl`.
+- **The page has all of that baked into it.** It's one self-contained file, not a viewer.
+  Sending someone the page sends them everything. Share a screenshot instead.
+- `--summaries` is the one thing that leaves your machine. It sends session titles and the
+  first couple of lines of each prompt to a model. You have to ask for it, and it never
+  runs on its own.
+
+## Releasing
+
+For anyone working on standup itself:
+
+```bash
+# bump "version" in .claude-plugin/plugin.json first
+claude plugin validate .
+claude plugin tag .
+git push origin main --tags
+```
+
+CI runs the same checks on every push. Skipping the version bump means nobody receives
+the change, because installs are cached per version.
 
 ## Requirements
 
-Python 3.9 or newer, and Claude Code. No third party packages. Desktop notifications are
-macOS only and are skipped silently elsewhere.
+Python 3.9+ and Claude Code. No packages to install. Desktop notifications are macOS only
+and are skipped everywhere else.
 
 ## Credits
 
-Neutral forge and tracker icons are [Octicons](https://primer.style/octicons) (MIT).
+Some icons are [Octicons](https://primer.style/octicons) (MIT).
 
 ## License
 

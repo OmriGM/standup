@@ -1,0 +1,28 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The oldest version the README promises, so the claim is tested rather than assumed.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Self-check
+        run: python3 hooks/standup.py self-check
+
+      - name: Renders from an empty history
+        run: |
+          HOME="$(mktemp -d)" python3 hooks/standup.py report
+        # A first run has no data. It must produce a page, not a traceback.
+
+      - name: Manifests
+        run: python3 .github/check_manifests.py

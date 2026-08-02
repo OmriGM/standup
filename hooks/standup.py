@@ -3,12 +3,12 @@
 
 Verbs:
   install           Register the SessionEnd hook in ~/.claude/settings.json.
-  record            SessionEnd hook. Reads the hook JSON on stdin, appends one line to the ledger.
-  backfill [--force] Seed the ledger from every transcript on disk; --force re-reads known ones.
-  report [opts]     Render the ledger as a self-contained HTML page.
+  record            SessionEnd hook. Reads the hook JSON on stdin, adds one line per session.
+  backfill [--force] Read every transcript already on disk; --force re-reads known sessions.
+  report [opts]     Render the history as a self-contained HTML page.
                     --weeks N, --out PATH, --summaries (regenerate week recaps and card text).
 
-Data lives in ~/.claude/standup/. The ledger is append-only JSONL and readers keep the
+Data lives in ~/.claude/standup/. The file is append-only JSONL and readers keep the
 last entry per session id, so re-recording a session (ended twice, or a backfill over
 a live session) corrects rather than double-counts.
 
@@ -34,7 +34,7 @@ from urllib.parse import urlparse
 
 HOME = Path.home()
 DATA = HOME / ".claude" / "standup"
-LEDGER = DATA / "ledger.jsonl"
+HISTORY = DATA / "sessions.jsonl"
 SUMMARIES = DATA / "summaries.json"
 CONFIG = DATA / "config.json"
 PAGE = DATA / "standup.html"
@@ -59,7 +59,7 @@ NOT_TICKETS = {"CVE", "ISO", "RFC", "UTF", "AES", "SHA", "PEP", "TF", "HTTP", "A
 # next backfill would otherwise ingest as a real session. Those fakes carry every ticket
 # named in the prompt, so they score high on impact and outrank genuine work. The prompt
 # carries this marker and any transcript containing it is skipped, in both directions:
-# never recorded, and filtered on read so ledgers polluted before the fix self-heal.
+# never recorded, and filtered on read so histories polluted before the fix self-heal.
 SENTINEL = "standup-internal-do-not-record"
 LEGACY_SENTINEL = "Below is one week of my coding sessions"
 
@@ -116,8 +116,8 @@ def _durations(stamps: list[str]) -> tuple[int, int, dict[str, int]]:
 
     The split is per *day*, not per week, because where a week begins is a user setting
     (Sunday for some, Monday for others). Bucketing at record time would bake one answer
-    into the ledger and silently misplace hours the moment that setting changed. A
-    resumed session still needs splitting: 13% of this ledger spans over 7 days, and
+    into the file and silently misplace hours the moment that setting changed. A
+    resumed session still needs splitting: 13% of these sessions span over 7 days, and
     charging all of it to the day it started would put a fortnight of work in one bar.
     """
     seen: list[datetime] = []
@@ -271,7 +271,7 @@ def _self_check() -> None:
 
 
 def summarize(transcript: Path, session_id: str = "", reason: str = "") -> dict | None:
-    """Reduce one transcript to a ledger row. Returns None if it holds no real turns."""
+    """Reduce one transcript to one row. Returns None if it holds no real turns."""
     title = branch = cwd = kind = ""
     first_ts = last_ts = None
     stamps: list[str] = []
@@ -394,13 +394,21 @@ def _migrate() -> None:
     Someone will have the old page bookmarked, so leave a stub behind rather than
     letting them stare at a file that silently stopped updating.
     """
-    if LEDGER.exists() or not LEGACY.is_dir():
+    if HISTORY.exists():
+        return
+    # Same folder, previous filename.
+    renamed = DATA / "ledger.jsonl"
+    if renamed.exists():
+        renamed.replace(HISTORY)
+        print(f"renamed ledger.jsonl to {HISTORY.name}", file=sys.stderr)
+        return
+    if not LEGACY.is_dir():
         return
     old_ledger = LEGACY / "ledger.jsonl"
     if not old_ledger.exists():
         return
     DATA.mkdir(parents=True, exist_ok=True)
-    for src, dst in ((old_ledger, LEDGER), (LEGACY / "summaries.json", SUMMARIES)):
+    for src, dst in ((old_ledger, HISTORY), (LEGACY / "summaries.json", SUMMARIES)):
         if src.exists():
             src.replace(dst)
     stub = LEGACY / "velocity.html"
@@ -412,21 +420,21 @@ def _migrate() -> None:
             f'<code>{PAGE}</code>. Update your bookmark.</p>'
             f'<p><a href="{PAGE.as_uri()}">Open it</a></p>'
         )
-    print(f"migrated ledger from {LEGACY} to {DATA}", file=sys.stderr)
+    print(f"moved your history from {LEGACY} to {DATA}", file=sys.stderr)
 
 
 def append(row: dict) -> None:
-    LEDGER.parent.mkdir(parents=True, exist_ok=True)
-    with LEDGER.open("a") as fh:
+    HISTORY.parent.mkdir(parents=True, exist_ok=True)
+    with HISTORY.open("a") as fh:
         fh.write(json.dumps(row, sort_keys=True) + "\n")
 
 
 def load() -> list[dict]:
-    """Ledger rows, one per session, last write winning, oldest first."""
-    if not LEDGER.exists():
+    """Recorded rows, one per session, last write winning, oldest first."""
+    if not HISTORY.exists():
         return []
     rows: dict[str, dict] = {}
-    with LEDGER.open(errors="replace") as fh:
+    with HISTORY.open(errors="replace") as fh:
         for line in fh:
             line = line.strip()
             if not line:
@@ -444,7 +452,7 @@ def load() -> list[dict]:
 
 
 def cmd_record() -> int:
-    """SessionEnd hook. Must never fail loudly: a broken ledger must not break exit."""
+    """SessionEnd hook. Must never fail loudly: a broken record must not break exit."""
     try:
         payload = json.load(sys.stdin)
     except ValueError:
@@ -486,9 +494,9 @@ def _notify(row: dict) -> None:
 
 
 def cmd_backfill(argv: list[str]) -> int:
-    """Seed the ledger from transcripts. --force re-reads sessions already recorded.
+    """Read every transcript on disk. --force re-reads sessions already recorded.
 
-    The ledger is append-only and load() keeps the last row per session, so a forced
+    The file is append-only and load() keeps the last row per session, so a forced
     pass simply supersedes older rows rather than needing to rewrite the file.
     """
     force = "--force" in argv
@@ -1330,7 +1338,7 @@ def cmd_report(argv: list[str]) -> int:
                 continue
 
     # Credit a PR to the first week it shows up in, which is the week it was opened.
-    # Scanned over the whole ledger, not the visible window: otherwise every PR merely
+    # Scanned over all history, not the visible window: otherwise every PR merely
     # revisited inside the window would pile onto its oldest week and inflate that bar.
     pr_week: dict[tuple[str, int], date] = {}
     for r in sorted(all_rows, key=lambda x: x["started_at"]):
@@ -1340,7 +1348,7 @@ def cmd_report(argv: list[str]) -> int:
     opened: Counter[date] = Counter(pr_week.values())
 
     ordered = sorted(set(by_week) | set(hours))
-    # Everything already open when tracking began lands in the ledger's first week, so
+    # Everything already open when tracking began lands in the first recorded week, so
     # that bar is a backlog, not a week's output. Mark it instead of letting it read as a record.
     seed = _week_key(all_rows[0]["started_at"]) if all_rows else None
     peak = max((n for k, n in opened.items() if k != seed), default=1) or 1
@@ -1511,7 +1519,7 @@ inflate a later week; a week header instead counts every PR it <em>touched</em>,
 The first bar is drawn as an outline because tracking starts there: it absorbs every PR that was already open,
 so it is a backlog rather than a week's output, and it is left out of the chart's scale.
 Only the most recent week is expanded by default.
-<br><br>Hiding a card with its &times; keeps it out of the view without touching the ledger: the choice is stored
+<br><br>Hiding a card with its &times; keeps it out of the view without touching your history: the choice is stored
 in this browser under <code>standup.hidden</code> and survives the page being rebuilt. Press <em>Hidden N</em> to
 show what you set aside, then &#8634; on any card to bring it back. The weekly counts, the tiles and the chart
 still include hidden sessions, because they are a record of what happened rather than of what you want to look at.

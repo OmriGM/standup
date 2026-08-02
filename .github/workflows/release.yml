@@ -1,0 +1,48 @@
+name: release
+
+# Tags and publishes a release whenever the version in plugin.json changes on main.
+# Installs are cached per version, so an unbumped version reaches nobody; this makes
+# the bump the only thing a human has to remember.
+on:
+  push:
+    branches: [main]
+    paths: [".claude-plugin/plugin.json"]
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: v
+        run: echo "version=$(python3 -c "import json;print(json.load(open('.claude-plugin/plugin.json'))['version'])")" >> "$GITHUB_OUTPUT"
+
+      - name: Skip if this version is already tagged
+        id: exists
+        run: |
+          if git rev-parse "standup--v${{ steps.v.outputs.version }}" >/dev/null 2>&1; then
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Version must match the marketplace entry
+        if: steps.exists.outputs.new == 'true'
+        run: python3 .github/check_manifests.py
+
+      - name: Tag and release
+        if: steps.exists.outputs.new == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ steps.v.outputs.version }}
+        run: |
+          git tag "standup--v$V"
+          git push origin "standup--v$V"
+          gh release create "standup--v$V" \
+            --title "standup $V" \
+            --notes "Update with \`claude plugin update standup\`, then restart Claude Code."

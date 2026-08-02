@@ -1398,11 +1398,15 @@ def cmd_report(argv: list[str]) -> int:
             chips += [_ticket_el(t, "chip", html.escape(t)) for t in r.get("tickets", [])]
             mins = r.get("minutes", 0)
             tok = _tokens(r)
-            chips.append(
-                f'<span class="chip time"{f" title=\"{_tok_title(r)}\"" if tok else ""}>'
-                f'{when:%a %-d %b}{f" &middot; {mins}m" if mins else ""}'
-                f'{f" &middot; {_tok(tok)}" if tok else ""}</span>'
-            )
+            # Built outside the f-string: an escaped quote inside one is a syntax error
+            # before Python 3.12, and this file supports 3.9.
+            tip = f' title="{_tok_title(r)}"' if tok else ""
+            when_bits = f"{when:%a %-d %b}"
+            if mins:
+                when_bits += f" &middot; {mins}m"
+            if tok:
+                when_bits += f" &middot; {_tok(tok)}"
+            chips.append(f'<span class="chip time"{tip}>{when_bits}</span>')
             # The badge explains its own arithmetic, so the number is never a bare assertion.
             parts = _impact_parts(r)
             score = sum(p for p, _ in parts)

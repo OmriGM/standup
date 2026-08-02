@@ -1,6 +1,6 @@
 {
   "name": "standup",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Records what every Claude Code session actually shipped, then renders it as a page you can read before standup.",
   "author": {
     "name": "Omri Grossman",
@@ -9,6 +9,5 @@
   "homepage": "https://github.com/OmriGM/standup",
   "repository": "https://github.com/OmriGM/standup",
   "license": "MIT",
-  "keywords": ["standup", "productivity", "reporting", "hooks", "retrospective"],
-  "hooks": "./hooks/hooks.json"
+  "keywords": ["standup", "productivity", "reporting", "hooks", "retrospective"]
 }

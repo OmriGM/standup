@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.DS_Store
+
+# Your own standup data lives in ~/.claude/standup/, not here. These patterns exist
+# only to catch a stray copy: the ledger holds the verbatim opening prompt of every
+# session you have ever run, and the HTML page embeds all of it.
+ledger.jsonl
+summaries.json
+standup.html
+config.json

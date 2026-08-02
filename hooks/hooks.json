@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "STANDUP_NOTIFY=1 python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/standup.py\" record; python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/standup.py\" report",
+            "async": true,
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}

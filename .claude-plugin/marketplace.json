@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "standup",
+  "description": "What your Claude Code sessions actually shipped, one page per week.",
+  "owner": {
+    "name": "Omri Grossman",
+    "url": "https://github.com/OmriGM"
+  },
+  "plugins": [
+    {
+      "name": "standup",
+      "description": "Records what every Claude Code session shipped and renders it as a weekly page, ranked by impact.",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}

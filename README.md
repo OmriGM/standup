@@ -72,7 +72,12 @@ costs nothing but a file read.
 
 ## Configuration
 
-Optional. Create `~/.claude/standup/config.json`:
+Press **Settings** on the page to see every option, change it and copy the resulting
+JSON. The page is a static file and cannot write to disk, so you save that JSON yourself
+and it applies the next time the page is built, which happens at the end of every
+session anyway.
+
+The file is `~/.claude/standup/config.json`, and everything in it is optional:
 
 ```json
 {

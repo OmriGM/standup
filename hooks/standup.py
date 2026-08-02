@@ -55,6 +55,19 @@ TOKEN_FIELDS = {
 TICKET_RE = re.compile(r"\b([A-Z][A-Z0-9]{1,5})-(\d{2,6})\b")
 NOT_TICKETS = {"CVE", "ISO", "RFC", "UTF", "AES", "SHA", "PEP", "TF", "HTTP", "ASCII", "GPT", "PY"}
 
+# Every `claude -p` call this tool makes leaves its own transcript on disk, which the
+# next backfill would otherwise ingest as a real session. Those fakes carry every ticket
+# named in the prompt, so they score high on impact and outrank genuine work. The prompt
+# carries this marker and any transcript containing it is skipped, in both directions:
+# never recorded, and filtered on read so ledgers polluted before the fix self-heal.
+SENTINEL = "standup-internal-do-not-record"
+LEGACY_SENTINEL = "Below is one week of my coding sessions"
+
+
+def _is_self_generated(text: str) -> bool:
+    return SENTINEL in text or LEGACY_SENTINEL in text
+
+
 # A gap longer than this is the human being elsewhere, not working. Summing capped
 # gaps gives time-at-keyboard; first-to-last span would count a lunch break or an
 # overnight pause as effort (one real session spanned 13h that way).
@@ -214,6 +227,10 @@ def _self_check() -> None:
     CONFIG = real_config
     _config.cache_clear()
 
+    # The tool must never ingest its own summary runs, in either direction.
+    assert _is_self_generated(_polish_prompt([{"session_id": "x", "started_at": "", "title": "t"}]))
+    assert not _is_self_generated("fix the login bug")
+
     assert _pop("2 PRs", "") == "<b>2 PRs</b>"
     assert 'class="pop"' in _pop("2 PRs", "<a></a>")
     print("self-check ok")
@@ -284,7 +301,7 @@ def summarize(transcript: Path, session_id: str = "", reason: str = "") -> dict 
                         if key not in ignored:
                             tickets[f"{key}-{num}"] += 1
 
-    if not first_ts or user_turns == 0:
+    if not first_ts or user_turns == 0 or _is_self_generated(first_prompt):
         return None
 
     minutes, span_minutes, week_minutes = _durations(stamps)
@@ -384,8 +401,11 @@ def load() -> list[dict]:
                 row = json.loads(line)
             except ValueError:
                 continue
-            if isinstance(row, dict) and row.get("session_id"):
-                rows[row["session_id"]] = row
+            if not isinstance(row, dict) or not row.get("session_id"):
+                continue
+            if _is_self_generated(row.get("ask") or ""):
+                continue
+            rows[row["session_id"]] = row
     return sorted(rows.values(), key=lambda r: r.get("started_at") or "")
 
 
@@ -553,9 +573,12 @@ h2{font-size:11.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--fa
 
 .chart{background:var(--card);border:1px solid var(--line);border-radius:14px;
  padding:20px 18px 14px;margin-bottom:46px}
-.bars{display:flex;align-items:flex-end;gap:10px;height:150px;overflow-x:auto}
-.bar{flex:1 0 40px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;
- gap:7px;height:100%}
+.bars{display:flex;align-items:flex-end;gap:10px;overflow-x:auto}
+.bar{flex:1 0 40px;display:flex;flex-direction:column;align-items:center;gap:7px}
+/* The plot area needs its own explicit height. A percentage against the whole column
+   would include the value and the date label, so any bar over about two thirds would
+   clamp to the same pixel height and the chart would silently understate its peaks. */
+.track{height:120px;width:100%;display:flex;align-items:flex-end}
 .bar i{display:block;width:100%;min-height:3px;border-radius:5px;background:var(--brand);
  transition-property:background-color;transition-duration:.18s}
 .bar:hover i{background:var(--accent)}
@@ -800,6 +823,7 @@ def _polish_prompt(rows: list[dict]) -> str:
             + f' | opening request: {r.get("ask", "")[:240]}'
         )
     return (
+        f"[{SENTINEL}]\n"
         "Below is one week of my coding sessions, one per line, each with an id.\n\n"
         + "\n".join(lines)
         + "\n\nReturn ONLY a JSON object, no prose and no code fences, shaped:\n"
@@ -979,7 +1003,8 @@ def cmd_report(argv: list[str]) -> int:
         cls = "seed" if is_seed else ("" if n else "empty")
         tip = " title=\"Tracking starts here, so this bar includes PRs opened earlier\"" if is_seed else ""
         bars.append(
-            f'<div class="bar"{tip}><b>{n}</b><i class="{cls}" style="height:{min(100, max(3, round(n / peak * 100)))}%"></i>'
+            f'<div class="bar"{tip}><b>{n}</b>'
+            f'<span class="track"><i class="{cls}" style="height:{min(100, max(3, round(n / peak * 100)))}%"></i></span>'
             f"<em>{html.escape(_week_label(*key))}</em></div>"
         )
 

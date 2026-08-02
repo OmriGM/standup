@@ -64,6 +64,9 @@ costs nothing but a file read.
 - **PRs opened per week**, counting each PR once, in the week it first appears.
 - **Sort** by recency, impact, duration or token count. **Hide** sessions you never want
   to see again, and unhide them later.
+- **Click any card** to open it: repo and branch, active time against elapsed time, turn
+  count, the token split, the full opening prompt, and the arithmetic behind the impact
+  score so you never have to take the number on trust.
 - **Token counts** per session and per week, split between generated output, fresh
   input, cache writes and cache reads.
 
@@ -76,12 +79,14 @@ Optional. Create `~/.claude/standup/config.json`:
   "ticket_url": "https://linear.app/your-org/issue/{key}",
   "ignore_prefixes": ["INC", "SEV"],
   "model": "haiku",
+  "week_start": "monday",
   "embed_images": false
 }
 ```
 
 | Key | Meaning |
 | --- | --- |
+| `week_start` | `monday` (ISO, the default), `sunday` or `saturday`. Your working week is not everyone's, and a Sunday to Thursday week groups differently. Time is stored per day, so changing this regroups your existing history rather than needing a re-record. |
 | `ticket_url` | Template with a `{key}` placeholder. Works with Linear, Jira, GitHub Issues, Shortcut, anything with a predictable URL. Unset means tickets render as plain text instead of guessing at a link. |
 | `ignore_prefixes` | Extra `ABC-123` shaped prefixes that are not tickets in your world. Universal false positives like `CVE` and `RFC` are already excluded. |
 | `model` | Model used by `--summaries`. Defaults to `haiku`. |

@@ -27,7 +27,7 @@ import subprocess
 import sys
 import tempfile
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlparse
@@ -109,15 +109,16 @@ def _repo_of(cwd: str) -> str:
 
 
 def _durations(stamps: list[str]) -> tuple[int, int, dict[str, int]]:
-    """(active minutes, wall span minutes, active minutes per ISO week).
+    """(active minutes, wall span minutes, active minutes per calendar day).
 
     Active time sums consecutive gaps, each capped at IDLE_GAP_MINUTES, so a pause
     contributes at most that cap instead of its full length.
 
-    The per-week split matters because a resumed session can span weeks (13% of this
-    ledger spans over 7 days). Charging all of its time to the week it *started*
-    would put a fortnight of work in one bar, so each gap is credited to the week it
-    happened in instead.
+    The split is per *day*, not per week, because where a week begins is a user setting
+    (Sunday for some, Monday for others). Bucketing at record time would bake one answer
+    into the ledger and silently misplace hours the moment that setting changed. A
+    resumed session still needs splitting: 13% of this ledger spans over 7 days, and
+    charging all of it to the day it started would put a fortnight of work in one bar.
     """
     seen: list[datetime] = []
     for s in stamps:
@@ -130,16 +131,15 @@ def _durations(stamps: list[str]) -> tuple[int, int, dict[str, int]]:
     seen.sort()
     cap = timedelta(minutes=IDLE_GAP_MINUTES)
     active = 0.0
-    per_week: dict[str, float] = defaultdict(float)
+    per_day: dict[str, float] = defaultdict(float)
     for a, b in zip(seen, seen[1:]):
         secs = min(b - a, cap).total_seconds()
         active += secs
-        y, w, _ = a.isocalendar()
-        per_week[f"{y}-W{w:02d}"] += secs
+        per_day[a.date().isoformat()] += secs
     return (
         round(active / 60),
         round((seen[-1] - seen[0]).total_seconds() / 60),
-        {k: round(v / 60) for k, v in sorted(per_week.items())},
+        {k: round(v / 60) for k, v in sorted(per_day.items())},
     )
 
 
@@ -156,9 +156,10 @@ def _self_check() -> None:
     # Unordered input must not produce negative time.
     assert _durations([iso(5), iso(0)])[:2] == (5, 5)
     assert _durations([iso(0)])[:2] == (0, 0) and _durations([])[:2] == (0, 0)
-    # A session straddling two ISO weeks splits its time across both buckets.
-    week_split = _durations([iso(0), iso(1), iso(7 * 1440), iso(7 * 1440 + 1)])[2]
-    assert len(week_split) == 2 and sum(week_split.values()) > 0, week_split
+    # A session straddling days splits its time across the days it was worked.
+    day_split = _durations([iso(0), iso(1), iso(7 * 1440), iso(7 * 1440 + 1)])[2]
+    assert len(day_split) == 2 and sum(day_split.values()) > 0, day_split
+    assert all(len(k) == 10 and k.count("-") == 2 for k in day_split), day_split
 
     grab = lambda t: [f"{k}-{n}" for k, n in TICKET_RE.findall(t) if k not in NOT_TICKETS]  # noqa: E731
     assert grab("fixed ABC-4512 and XYZ-4825") == ["ABC-4512", "XYZ-4825"]
@@ -224,6 +225,26 @@ def _self_check() -> None:
         _config.cache_clear()
         assert _config() == {} and _ignored_prefixes() == NOT_TICKETS
 
+    CONFIG = real_config
+    _config.cache_clear()
+
+    # Week grouping follows the configured start day, so a Sunday-to-Thursday week
+    # groups differently from an ISO one. Wed 2026-07-29 sits in both, differently.
+    wed = date(2026, 7, 29)
+    with tempfile.TemporaryDirectory() as tmp:
+        CONFIG = Path(tmp) / "config.json"
+        for start, expected in (("monday", date(2026, 7, 27)), ("sunday", date(2026, 7, 26))):
+            CONFIG.write_text(json.dumps({"week_start": start}))
+            _config.cache_clear()
+            assert _week_of(wed) == expected, (start, _week_of(wed))
+        # An unknown value must fall back to ISO rather than crash the report.
+        CONFIG.write_text('{"week_start": "funday"}')
+        _config.cache_clear()
+        assert _week_of(wed) == date(2026, 7, 27)
+        # The start day is always its own week start.
+        CONFIG.write_text('{"week_start": "sunday"}')
+        _config.cache_clear()
+        assert _week_of(date(2026, 7, 26)) == date(2026, 7, 26)
     CONFIG = real_config
     _config.cache_clear()
 
@@ -313,7 +334,7 @@ def summarize(transcript: Path, session_id: str = "", reason: str = "") -> dict 
     if not first_ts or user_turns == 0 or _is_self_generated(first_prompt):
         return None
 
-    minutes, span_minutes, week_minutes = _durations(stamps)
+    minutes, span_minutes, day_minutes = _durations(stamps)
 
     return {
         "session_id": session_id or transcript.stem,
@@ -327,7 +348,7 @@ def summarize(transcript: Path, session_id: str = "", reason: str = "") -> dict 
         "ended_at": last_ts,
         "minutes": minutes,
         "span_minutes": span_minutes,
-        "week_minutes": week_minutes,
+        "day_minutes": day_minutes,
         "turns": user_turns,
         "tokens": dict(tokens),
         # Most-mentioned first: the ticket a session actually worked stands out
@@ -538,17 +559,21 @@ CSS = """
 /* Near-black surfaces, hairline borders, one violet accent.
    Dark only and flat by intent -- no gradients anywhere on this page. */
 :root{
- --bg:#0a0a0c; --fg:#ededf0; --muted:#9b9baa; --faint:#6f6f80;
- --card:#141417; --card-hi:#191920; --chip:#1a1a20; --line:#26262d;
- --accent:#9c85ff; --brand:#7c5cff; --hair:#1e1e24;
+ --bg:#08080a; --fg:#f2f2f5; --muted:#9b9baa; --faint:#6e6e7c;
+ --card:#131316; --card-hi:#1b1b21; --chip:#1a1a20; --line:#26262c;
+ --accent:#a793ff; --brand:#7c5cff; --hair:#1d1d23;
+ /* A 1px top highlight is what reads as a real surface catching light. */
+ --edge:inset 0 1px 0 rgba(255,255,255,.045);
+ --ease:cubic-bezier(.32,.72,0,1);
+ --spring:cubic-bezier(.34,1.4,.64,1);
 }
 *{box-sizing:border-box}
 html{color-scheme:dark}
 body{margin:0;background:var(--bg);color:var(--fg);
- font:15px/1.6 ui-sans-serif,-apple-system,"Segoe UI",sans-serif;
+ font:15px/1.6 -apple-system,BlinkMacSystemFont,"SF Pro Text",ui-sans-serif,"Segoe UI",sans-serif;
  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
- font-variant-numeric:tabular-nums}
-.wrap{max-width:1180px;margin:0 auto;padding:52px 26px 80px}
+ font-variant-numeric:tabular-nums;letter-spacing:-.005em}
+.wrap{max-width:1180px;margin:0 auto;padding:60px 26px 96px}
 
 /* Staggered enter: header, chart, then each week group. */
 .rise{animation:rise .5s cubic-bezier(.2,0,0,1) both;animation-delay:calc(var(--i,0)*100ms)}
@@ -562,34 +587,49 @@ body{margin:0;background:var(--bg);color:var(--fg);
  .pop-row{opacity:1;transform:none;transition-delay:0s!important;transition-duration:.01ms}
  details[open]>.recap,details[open]>.cards{animation:none}
  .weekhead::before{transition:none}
+ .card,.bar i,.bar b,.bar em{animation:none}
+ .thumb{transition:opacity .2s}
+ .more{transition:none}
+ .tile:hover,.card:hover,.ghost:hover{transform:none}
 }
 
 /* Keyboard focus must stay visible: every chip is a link. */
 a:focus-visible{outline:2px solid var(--brand);outline-offset:3px;border-radius:8px}
 
-h1{font-size:30px;line-height:1.15;letter-spacing:-.025em;margin:0 0 6px;text-wrap:balance}
+h1{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",ui-sans-serif,sans-serif;
+ font-size:40px;font-weight:700;line-height:1.08;letter-spacing:-.035em;margin:0 0 8px;
+ text-wrap:balance}
 h1 span{color:var(--accent)}
-.sub{color:var(--muted);font-size:14px;margin:0 0 36px}
+.sub{color:var(--muted);font-size:14.5px;margin:0 0 40px;letter-spacing:-.01em}
 
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:44px}
-.tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
-.tile b{display:block;font-size:26px;letter-spacing:-.03em;line-height:1.1;color:var(--accent)}
-.tile span{display:block;margin-top:3px;color:var(--faint);font-size:11px;
- text-transform:uppercase;letter-spacing:.07em;font-weight:600}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:48px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 20px;
+ box-shadow:var(--edge);transition:border-color .3s var(--ease),transform .3s var(--spring)}
+.tile:hover{border-color:#33333c;transform:translateY(-2px)}
+.tile b{display:block;font-size:30px;font-weight:680;letter-spacing:-.04em;line-height:1.05;
+ color:var(--accent);font-variant-numeric:tabular-nums}
+.tile span{display:block;margin-top:5px;color:var(--faint);font-size:11px;
+ text-transform:uppercase;letter-spacing:.08em;font-weight:600}
 
 h2{font-size:11.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--faint);
  margin:0 0 14px;font-weight:700}
 
-.chart{background:var(--card);border:1px solid var(--line);border-radius:14px;
- padding:20px 18px 14px;margin-bottom:46px}
+.chart{background:var(--card);border:1px solid var(--line);border-radius:20px;
+ padding:24px 20px 16px;margin-bottom:50px;box-shadow:var(--edge)}
 .bars{display:flex;align-items:flex-end;gap:10px;overflow-x:auto}
 .bar{flex:1 0 40px;display:flex;flex-direction:column;align-items:center;gap:7px}
 /* The plot area needs its own explicit height. A percentage against the whole column
    would include the value and the date label, so any bar over about two thirds would
    clamp to the same pixel height and the chart would silently understate its peaks. */
 .track{height:120px;width:100%;display:flex;align-items:flex-end}
-.bar i{display:block;width:100%;min-height:3px;border-radius:5px;background:var(--brand);
- transition-property:background-color;transition-duration:.18s}
+.bar i{display:block;width:100%;min-height:3px;border-radius:6px;background:var(--brand);
+ transition:background-color .25s var(--ease);
+ /* Grow out of the axis on load, one after another. */
+ transform-origin:bottom;animation:grow .8s var(--ease) both;
+ animation-delay:calc(var(--i,0)*70ms + 150ms)}
+@keyframes grow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+.bar b,.bar em{animation:fade .5s var(--ease) both;animation-delay:calc(var(--i,0)*70ms + 350ms)}
+@keyframes fade{from{opacity:0}to{opacity:1}}
 .bar:hover i{background:var(--accent)}
 .bar i.empty{background:var(--line)}
 .bar:hover i.empty{background:var(--line)}
@@ -602,23 +642,33 @@ h2{font-size:11.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--fa
 .bar em{font-style:normal;font-size:11px;color:var(--faint);white-space:nowrap}
 
 /* Sort acts inside each week, so weekly totals stay true whatever the order. */
-.sortbar{display:flex;align-items:center;justify-content:space-between;gap:16px;
- flex-wrap:wrap;margin-bottom:18px}
+/* Sticky so sorting stays reachable, with the blur Apple uses to keep chrome legible
+   over content instead of hiding it behind a solid slab. */
+.sortbar{position:sticky;top:0;z-index:40;display:flex;align-items:center;
+ justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px;padding:14px 0;
+ background:color-mix(in srgb,var(--bg) 76%,transparent);
+ -webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px)}
 .sortbar h2{margin:0}
 .tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.sorts{display:flex;gap:4px;background:var(--card);border:1px solid var(--line);
- border-radius:10px;padding:4px}
+.sorts{position:relative;display:flex;gap:2px;background:var(--card);border:1px solid var(--line);
+ border-radius:12px;padding:4px;box-shadow:var(--edge)}
+/* One pill that slides between options, rather than a background flicking on and off. */
+.thumb{position:absolute;top:4px;bottom:4px;left:0;width:0;border-radius:9px;background:var(--brand);
+ opacity:0;transition:transform .42s var(--spring),width .42s var(--spring),opacity .2s}
+.thumb.ready{opacity:1}
 .ghost{appearance:none;background:var(--card);border:1px solid var(--line);color:var(--muted);
- border-radius:10px;padding:9px 14px;font:600 12px/1 inherit;cursor:pointer;
- transition-property:background-color,color,border-color;transition-duration:.15s}
-.ghost:hover{color:var(--fg);border-color:var(--brand)}
+ border-radius:12px;padding:10px 15px;font:600 12px/1 inherit;cursor:pointer;box-shadow:var(--edge);
+ transition:background-color .25s var(--ease),color .25s var(--ease),border-color .25s var(--ease),
+ transform .3s var(--spring)}
+.ghost:hover{color:var(--fg);border-color:var(--brand);transform:translateY(-1px)}
+.ghost:active{transform:scale(.97)}
 .ghost.on{background:var(--brand);border-color:var(--brand);color:#fff}
 .ghost:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.sortbtn{appearance:none;border:0;background:transparent;color:var(--muted);cursor:pointer;
- font:600 12px/1 inherit;letter-spacing:.01em;padding:7px 13px;border-radius:7px;
- transition-property:background-color,color;transition-duration:.15s}
+.sortbtn{position:relative;z-index:1;appearance:none;border:0;background:transparent;
+ color:var(--muted);cursor:pointer;font:600 12px/1 inherit;letter-spacing:.01em;
+ padding:8px 14px;border-radius:9px;transition:color .25s var(--ease)}
 .sortbtn:hover{color:var(--fg)}
-.sortbtn.on{background:var(--brand);color:#fff}
+.sortbtn.on{color:#fff}
 .sortbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
 .week{margin-bottom:36px}
@@ -676,10 +726,30 @@ details[open]>.recap,details[open]>.cards{animation:rise .3s cubic-bezier(.2,0,0
 @media (max-width:640px){.cards{grid-template-columns:1fr}}
 
 .card{display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);
- border-radius:12px;padding:16px 18px;min-height:132px;
- transition-property:background-color,border-color,transform;transition-duration:.18s;
- transition-timing-function:cubic-bezier(.2,0,0,1)}
-.card:hover{background:var(--card-hi);border-color:var(--brand);transform:translateY(-2px)}
+ border-radius:16px;padding:18px 20px;min-height:132px;cursor:pointer;box-shadow:var(--edge);
+ transition:background-color .3s var(--ease),border-color .3s var(--ease),
+ transform .4s var(--spring),box-shadow .3s var(--ease);
+ animation:rise .5s var(--ease) both;animation-delay:calc(var(--n,0)*35ms)}
+.card:hover{background:var(--card-hi);border-color:#3a3a45;transform:translateY(-3px);
+ box-shadow:var(--edge),0 12px 28px -12px rgba(0,0,0,.7)}
+.card:active{transform:translateY(-1px) scale(.995)}
+.card.open{border-color:var(--brand);cursor:default}
+
+/* 0fr to 1fr animates a height the browser cannot otherwise interpolate. */
+.more{display:grid;grid-template-rows:0fr;transition:grid-template-rows .4s var(--ease)}
+.card.open .more{grid-template-rows:1fr}
+.more-in{overflow:hidden;min-height:0}
+.more dl{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;margin:14px 0 0;
+ padding-top:14px;border-top:1px solid var(--hair);font-size:12px}
+.more dt{color:var(--faint);font-weight:600;white-space:nowrap}
+.more dd{margin:0;color:var(--muted);overflow-wrap:anywhere}
+.more .full{margin:12px 0 0;padding:11px 13px;background:var(--bg);border-radius:10px;
+ color:var(--muted);font-size:12px;line-height:1.6;max-height:180px;overflow-y:auto;
+ white-space:pre-wrap;overflow-wrap:anywhere}
+.more .bd{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.more .bd span{background:var(--chip);border:1px solid var(--line);border-radius:6px;
+ padding:3px 8px;font-size:11px;color:var(--muted);font-weight:600}
+.more .bd b{color:var(--accent);font-weight:700}
 .card .top{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
 .card .name{font-weight:650;font-size:14.5px;letter-spacing:-.01em;text-wrap:balance}
 .card .score{flex:none;font-size:11.5px;font-weight:700;color:var(--accent);background:var(--chip);
@@ -844,6 +914,60 @@ def _image_html(text: str) -> str:
     return "".join(out)
 
 
+def _details(r: dict, score: int) -> str:
+    """The panel behind a card. Everything here is already in the row, unshown until now."""
+    rows: list[tuple[str, str]] = []
+    where = " · ".join(x for x in (r.get("repo"), r.get("branch")) if x)
+    if where:
+        rows.append(("Where", html.escape(where)))
+
+    try:
+        began = datetime.fromisoformat(r["started_at"].replace("Z", "+00:00"))
+        ended = datetime.fromisoformat((r.get("ended_at") or r["started_at"]).replace("Z", "+00:00"))
+        rows.append(("When", html.escape(f"{began:%a %-d %b, %H:%M} to {ended:%H:%M}")))
+    except (KeyError, ValueError):
+        pass
+
+    mins, span = r.get("minutes", 0), r.get("span_minutes", 0)
+    if span:
+        # Active versus elapsed is the interesting pair: it shows how much of a long
+        # session was actually at the keyboard.
+        rows.append(("Time", f"{mins}m at the keyboard, {span}m elapsed"))
+    if r.get("turns"):
+        rows.append(("Turns", str(r["turns"])))
+
+    tok = r.get("tokens") or {}
+    if tok:
+        rows.append((
+            "Tokens",
+            " · ".join(
+                f"{_tok(tok.get(k, 0))} {lbl}"
+                for k, lbl in (("output", "out"), ("input", "in"),
+                               ("cache_write", "cache write"), ("cache_read", "cache read"))
+            ),
+        ))
+
+    # Show the arithmetic rather than asking anyone to trust the number.
+    parts = []
+    if r.get("prs"):
+        parts.append(f"<span><b>{40 * len(r['prs'])}</b> {len(r['prs'])} PR</span>")
+    if r.get("tickets"):
+        parts.append(f"<span><b>{12 * len(r['tickets'])}</b> {len(r['tickets'])} tickets</span>")
+    parts.append(f"<span><b>{round(min(mins, 180) / 180 * 20)}</b> time</span>")
+    parts.append(f"<span><b>{round(min(r.get('turns', 0), 60) / 60 * 8)}</b> depth</span>")
+    parts.append(f"<span><b>{score}</b> total</span>")
+
+    dl = "".join(f"<dt>{k}</dt><dd>{v}</dd>" for k, v in rows)
+    full = _tidy_ask(r.get("ask") or "")
+    return (
+        '<div class="more"><div class="more-in">'
+        + (f"<dl>{dl}</dl>" if dl else "")
+        + f'<div class="bd">{"".join(parts)}</div>'
+        + (f'<p class="full">{html.escape(full)}</p>' if full else "")
+        + "</div></div>"
+    )
+
+
 def _tokens(r: dict) -> int:
     """Every token the session moved, cache reads included."""
     t = r.get("tokens") or {}
@@ -939,7 +1063,7 @@ def _polish(rows: list[dict]) -> dict:
     return {"recap": " ".join(str(data.get("recap", "")).split())[:400], "cards": cards}
 
 
-def _week_polish(by_week: dict[tuple[int, int], list[dict]], refresh: bool) -> dict[tuple[int, int], dict]:
+def _week_polish(by_week: dict[date, list[dict]], refresh: bool) -> dict[date, dict]:
     """Cached per-week recaps and card rewrites, refreshed only when a week grows.
 
     Without --summaries nothing is generated and the page renders whatever is
@@ -950,13 +1074,13 @@ def _week_polish(by_week: dict[tuple[int, int], list[dict]], refresh: bool) -> d
     except (OSError, ValueError):
         cache = {}
 
-    out: dict[tuple[int, int], dict] = {}
+    out: dict[date, dict] = {}
     wrote = False
     for key, rows in sorted(by_week.items(), reverse=True):
         if not rows:
             continue
         rows = sorted(rows, key=lambda r: r["started_at"])
-        name = f"{key[0]}-W{key[1]:02d}"
+        name = key.isoformat()
         stamp = f"{len(rows)}:{max(r['started_at'] for r in rows)}"
         hit = cache.get(name) if isinstance(cache.get(name), dict) else None
         if hit and hit.get("stamp") == stamp:
@@ -983,15 +1107,26 @@ def _week_polish(by_week: dict[tuple[int, int], list[dict]], refresh: bool) -> d
     return out
 
 
-def _week_key(iso: str) -> tuple[int, int]:
-    dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
-    y, w, _ = dt.isocalendar()
-    return y, w
+# Where the working week begins. Sunday for much of the Middle East, Monday for ISO.
+WEEK_STARTS = {"sunday": 6, "monday": 0, "saturday": 5}
 
 
-def _week_label(year: int, week: int) -> str:
-    monday = datetime.fromisocalendar(year, week, 1)
-    return f"{monday:%b %-d}"
+def _week_start_weekday() -> int:
+    """Python weekday index the week begins on. Monday (ISO) unless configured."""
+    return WEEK_STARTS.get(str(_config().get("week_start", "monday")).lower(), 0)
+
+
+def _week_of(day: date) -> date:
+    """The date the containing week begins on, honouring the configured start day."""
+    return day - timedelta(days=(day.weekday() - _week_start_weekday()) % 7)
+
+
+def _week_key(iso: str) -> date:
+    return _week_of(datetime.fromisoformat(iso.replace("Z", "+00:00")).date())
+
+
+def _week_label(start: date) -> str:
+    return f"{start:%b %-d}"
 
 
 def _ticket_url(t: str) -> str:
@@ -1030,7 +1165,7 @@ def cmd_report(argv: list[str]) -> int:
     cutoff = datetime.now(timezone.utc) - timedelta(weeks=weeks)
     rows = [r for r in all_rows if datetime.fromisoformat(r["started_at"].replace("Z", "+00:00")) >= cutoff]
 
-    by_week: dict[tuple[int, int], list[dict]] = defaultdict(list)
+    by_week: dict[date, list[dict]] = defaultdict(list)
     for r in rows:
         by_week[_week_key(r["started_at"])].append(r)
 
@@ -1040,26 +1175,34 @@ def cmd_report(argv: list[str]) -> int:
     all_tickets = {t for r in rows for t in r.get("tickets", [])}
     total_min = sum(r.get("minutes", 0) for r in rows)
 
-    # Hours per week come from each session's own per-week split, so a session
-    # resumed across weeks lands in the weeks it was actually worked.
-    hours: dict[tuple[int, int], float] = defaultdict(float)
+    # Hours per week are folded up from each session's per-day split, so a session
+    # resumed across weeks lands in the weeks it was actually worked, and so changing
+    # week_start regroups existing history instead of needing a re-record.
+    hours: dict[date, float] = defaultdict(float)
     for r in rows:
+        for day, mins in (r.get("day_minutes") or {}).items():
+            try:
+                hours[_week_of(date.fromisoformat(day))] += mins / 60
+            except ValueError:
+                continue
+        # Rows written before the per-day split still have a week bucket; place their
+        # time at the start of that ISO week rather than dropping it.
         for wk, mins in (r.get("week_minutes") or {}).items():
             try:
                 y, w = wk.split("-W")
-                hours[(int(y), int(w))] += mins / 60
+                hours[_week_of(date.fromisocalendar(int(y), int(w), 1))] += mins / 60
             except ValueError:
                 continue
 
     # Credit a PR to the first week it shows up in, which is the week it was opened.
     # Scanned over the whole ledger, not the visible window: otherwise every PR merely
     # revisited inside the window would pile onto its oldest week and inflate that bar.
-    pr_week: dict[tuple[str, int], tuple[int, int]] = {}
+    pr_week: dict[tuple[str, int], date] = {}
     for r in sorted(all_rows, key=lambda x: x["started_at"]):
         wk = _week_key(r["started_at"])
         for p in r.get("prs", []):
             pr_week.setdefault((p["repo"], p["number"]), wk)
-    opened: Counter[tuple[int, int]] = Counter(pr_week.values())
+    opened: Counter[date] = Counter(pr_week.values())
 
     ordered = sorted(set(by_week) | set(hours))
     # Everything already open when tracking began lands in the ledger's first week, so
@@ -1068,15 +1211,15 @@ def cmd_report(argv: list[str]) -> int:
     peak = max((n for k, n in opened.items() if k != seed), default=1) or 1
 
     bars = []
-    for key in ordered:
+    for bi, key in enumerate(ordered):
         n = opened.get(key, 0)
         is_seed = key == seed
         cls = "seed" if is_seed else ("" if n else "empty")
         tip = " title=\"Tracking starts here, so this bar includes PRs opened earlier\"" if is_seed else ""
         bars.append(
-            f'<div class="bar"{tip}><b>{n}</b>'
+            f'<div class="bar" style="--i:{bi}"{tip}><b>{n}</b>'
             f'<span class="track"><i class="{cls}" style="height:{min(100, max(3, round(n / peak * 100)))}%"></i></span>'
-            f"<em>{html.escape(_week_label(*key))}</em></div>"
+            f"<em>{html.escape(_week_label(key))}</em></div>"
         )
 
     polish = _week_polish(by_week, summaries)
@@ -1119,7 +1262,8 @@ def cmd_report(argv: list[str]) -> int:
             )
             score = _impact(r)
             cards.append(
-                f'<article class="card" data-ts="{html.escape(r["started_at"])}" '
+                f'<article class="card" style="--n:{min(len(cards), 9)}" '
+                f'data-ts="{html.escape(r["started_at"])}" '
                 f'data-impact="{score}" data-min="{mins}" data-tok="{tok}" '
                 f'data-sid="{html.escape(r.get("session_id") or "")}">'
                 f'<div class="top"><span class="name">{html.escape(name)}</span>'
@@ -1127,7 +1271,9 @@ def cmd_report(argv: list[str]) -> int:
                 '<button type="button" class="hide" title="Hide this session"></button></div>'
                 + (f'<p class="ask">{html.escape(ask)}</p>' if ask else "")
                 + shots
-                + f'<div class="foot">{"".join(chips)}</div></article>'
+                + f'<div class="foot">{"".join(chips)}</div>'
+                + _details(r, score)
+                + "</article>"
             )
 
         pr_rows = "".join(
@@ -1154,7 +1300,7 @@ def cmd_report(argv: list[str]) -> int:
         recap = html.escape(polish.get(key, {}).get("recap", ""))
         sections.append(
             f'<details class="week rise" style="--i:{min(n + 3, 6)}"{" open" if n == 0 else ""}>'
-            f'<summary class="weekhead"><h3>Week of {html.escape(_week_label(*key))}</h3>'
+            f'<summary class="weekhead"><h3>Week of {html.escape(_week_label(key))}</h3>'
             f'<span class="meta">{meta}</span></summary>'
             + (f'<p class="recap">{recap}</p>' if recap else "")
             + f'<div class="cards">{"".join(cards)}</div></details>'
@@ -1191,6 +1337,7 @@ def cmd_report(argv: list[str]) -> int:
   <div class="tools">
     <button type="button" class="ghost hiddenbtn" aria-pressed="false" hidden>Hidden 0</button>
     <div class="sorts" role="group" aria-label="Sort sessions within each week">
+      <span class="thumb" aria-hidden="true"></span>
       <button type="button" class="sortbtn on" data-k="ts">Recent</button>
       <button type="button" class="sortbtn" data-k="impact">Impact</button>
       <button type="button" class="sortbtn" data-k="min">Longest</button>
@@ -1229,9 +1376,32 @@ cached; regenerate them with <code>standup.py report --summaries</code>.</footer
   const cmp = k => k === 'ts'
     ? (a, b) => b.dataset.ts.localeCompare(a.dataset.ts)
     : (a, b) => b.dataset[k] - a.dataset[k];
+
+  // The active pill is one element that slides, so switching sorts reads as movement
+  // rather than as one box vanishing and another appearing.
+  const thumb = document.querySelector('.thumb');
+  const slide = b => {{
+    thumb.style.width = b.offsetWidth + 'px';
+    thumb.style.transform = 'translateX(' + b.offsetLeft + 'px)';
+    thumb.classList.add('ready');
+  }};
+
   for (const b of btns) b.addEventListener('click', () => {{
     for (const x of btns) x.classList.toggle('on', x === b);
-    for (const g of grids) for (const el of [...g.children].sort(cmp(b.dataset.k))) g.appendChild(el);
+    slide(b);
+    for (const g of grids) {{
+      const sorted = [...g.children].sort(cmp(b.dataset.k));
+      sorted.forEach((el, i) => {{
+        el.style.setProperty('--n', Math.min(i, 9));
+        g.appendChild(el);
+      }});
+    }}
+  }});
+  const active = document.querySelector('.sortbtn.on');
+  if (active) requestAnimationFrame(() => slide(active));
+  addEventListener('resize', () => {{
+    const on = document.querySelector('.sortbtn.on');
+    if (on) slide(on);
   }});
   // The popovers live inside the week summary, so their clicks would otherwise toggle it shut.
   for (const h of document.querySelectorAll('.pop-host'))
@@ -1277,6 +1447,34 @@ cached; regenerate them with <code>standup.py report --summaries</code>.</footer
   }});
 
   apply();
+
+  // Click a card to see what is behind it. Links, chips and the hide button keep
+  // their own behaviour, so only clicks on the card itself toggle.
+  for (const c of cards) c.addEventListener('click', e => {{
+    if (e.target.closest('a, button')) return;
+    const opening = !c.classList.contains('open');
+    c.classList.toggle('open', opening);
+    if (opening) for (const o of cards) if (o !== c) o.classList.remove('open');
+  }});
+
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Tiles count up to their value. Purely for the small hit of watching it land.
+  if (!still) for (const el of document.querySelectorAll('.tile b')) {{
+    const m = el.textContent.trim().match(/^([\\d.]+)(\\D*)$/);
+    if (!m) continue;
+    const target = parseFloat(m[1]), suffix = m[2];
+    const dp = (m[1].split('.')[1] || '').length;
+    let t0 = null;
+    const tick = t => {{
+      t0 ??= t;
+      const p = Math.min((t - t0) / 1000, 1);
+      el.textContent = (target * (1 - Math.pow(1 - p, 4))).toFixed(dp) + suffix;
+      if (p < 1) requestAnimationFrame(tick);
+    }};
+    el.textContent = (0).toFixed(dp) + suffix;
+    requestAnimationFrame(tick);
+  }}
 }})();
 </script>"""
 

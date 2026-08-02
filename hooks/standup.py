@@ -182,6 +182,10 @@ def _self_check() -> None:
     assert _impact({"minutes": 6000, "turns": 5000}) < _impact({"prs": [{}]})
     # Past the caps, more grinding buys nothing.
     assert _impact({"minutes": 180, "turns": 60}) == _impact({"minutes": 9999, "turns": 9999})
+    # The tooltip is generated from these parts, so the badge must always be their sum.
+    for sample in ({}, {"minutes": 47, "turns": 13}, {"minutes": 90, "turns": 40, "prs": [{}, {}],
+                                                      "tickets": ["A-1", "B-2", "C-3"]}):
+        assert sum(p for p, _ in _impact_parts(sample)) == _impact(sample), sample
 
     assert _tokens({}) == 0 and _tokens({"tokens": {"input": 5, "output": 7}}) == 12
     # Malformed usage must not crash a whole report.
@@ -731,6 +735,21 @@ details[open]>.weekhead::before{transform:rotate(45deg)}
  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pop-row:hover{background:var(--card-hi)}
 
+/* The score needs explaining where people meet it, not only in the footer. */
+.tipinfo{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;
+ border:1px solid var(--line);border-radius:50%;background:var(--card);box-shadow:var(--edge);
+ cursor:help;flex:none;
+ transition:color .25s var(--ease),border-color .25s var(--ease)}
+.tipinfo>b{font-size:12px;font-weight:700;color:var(--faint);line-height:1}
+.tipinfo:hover{border-color:var(--brand)}
+.tipinfo:hover>b{color:var(--accent)}
+.pop.tip{width:290px;padding:14px 16px;display:block;font-size:12.5px;line-height:1.62;
+ color:var(--muted);font-weight:400;white-space:normal}
+.pop.tip>b{display:block;margin-bottom:7px;color:var(--fg);font-size:12.5px;font-weight:660}
+.pop.tip em{font-style:normal;font-weight:700;color:var(--accent)}
+.pop.tip i{display:block;margin-top:9px;padding-top:9px;border-top:1px solid var(--hair);
+ font-style:normal;color:var(--faint);font-size:11.5px;line-height:1.55}
+
 /* A details element has no native open transition, so reuse the page's enter animation. */
 details[open]>.recap,details[open]>.cards{animation:rise .3s cubic-bezier(.2,0,0,1) both}
 
@@ -1025,6 +1044,24 @@ def _tok_title(r: dict) -> str:
     return " · ".join(parts)
 
 
+def _impact_parts(r: dict) -> list[tuple[int, str]]:
+    """The score broken into the pieces shown in its tooltip.
+
+    Each piece is rounded here rather than the total being rounded afterwards, so the
+    number on the badge is exactly the sum of the reasons given for it. Round-then-sum
+    and sum-then-round disagree, and a score that cannot be added up is not explainable.
+    """
+    parts: list[tuple[int, str]] = []
+    prs, tix = len(r.get("prs", [])), len(r.get("tickets", []))
+    if prs:
+        parts.append((40 * prs, f"{prs} PR" + ("s" if prs != 1 else "")))
+    if tix:
+        parts.append((12 * tix, f"{tix} ticket" + ("s" if tix != 1 else "")))
+    parts.append((round(min(r.get("minutes", 0), 180) / 180 * 20), "time spent"))
+    parts.append((round(min(r.get("turns", 0), 60) / 60 * 8), "back and forth"))
+    return parts
+
+
 def _impact(r: dict) -> int:
     """Score a session by what it shipped, using effort only as a tiebreaker.
 
@@ -1032,11 +1069,7 @@ def _impact(r: dict) -> int:
     intent, so both dominate. Time and turns are deliberately capped low: a long
     grind with nothing to show for it must never outrank a session that shipped.
     """
-    pts = 40 * len(r.get("prs", []))
-    pts += 12 * len(r.get("tickets", []))
-    pts += min(r.get("minutes", 0), 180) / 180 * 20
-    pts += min(r.get("turns", 0), 60) / 60 * 8
-    return round(pts)
+    return sum(pts for pts, _ in _impact_parts(r))
 
 
 def _polish_prompt(rows: list[dict]) -> str:
@@ -1294,14 +1327,17 @@ def cmd_report(argv: list[str]) -> int:
                 f'{when:%a %-d %b}{f" &middot; {mins}m" if mins else ""}'
                 f'{f" &middot; {_tok(tok)}" if tok else ""}</span>'
             )
-            score = _impact(r)
+            # The badge explains its own arithmetic, so the number is never a bare assertion.
+            parts = _impact_parts(r)
+            score = sum(p for p, _ in parts)
+            why = html.escape(f"Impact {score} = " + " + ".join(f"{p} for {lbl}" for p, lbl in parts))
             cards.append(
                 f'<article class="card" style="--n:{min(len(cards), 9)}" '
                 f'data-ts="{html.escape(r["started_at"])}" '
                 f'data-impact="{score}" data-min="{mins}" data-tok="{tok}" '
                 f'data-sid="{html.escape(r.get("session_id") or "")}">'
                 f'<div class="top"><span class="name">{html.escape(name)}</span>'
-                f'<span class="score" title="Impact {score}">{score}</span>'
+                f'<span class="score" title="{why}">{score}</span>'
                 '<button type="button" class="hide" title="Hide this session"></button></div>'
                 + (f'<p class="ask">{html.escape(ask)}</p>' if ask else "")
                 + shots
@@ -1380,6 +1416,17 @@ which tickets you touched, what you actually asked the agent. Walk into standup 
       <button type="button" class="sortbtn" data-k="min">Longest</button>
       <button type="button" class="sortbtn" data-k="tok">Tokens</button>
     </div>
+    <span class="pop-host tipinfo" tabindex="0" role="note" aria-label="How impact is scored">
+      <b aria-hidden="true">?</b>
+      <span class="pop tip">
+        <b>How impact is scored</b>
+        <em>40</em> per pull request opened, <em>12</em> per ticket touched. Then up to
+        <em>20</em> for time at the keyboard, maxing out at three hours, and up to
+        <em>8</em> for depth of back and forth, maxing out at sixty turns.
+        <i>Effort is capped on purpose. A long session that shipped nothing can never
+        outrank one that opened a pull request. Hover any score to see its own sum.</i>
+      </span>
+    </span>
   </div>
 </div>
 {''.join(sections) or '<p class="empty-note">Nothing recorded yet. Run <code>standup.py backfill</code>.</p>'}

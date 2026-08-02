@@ -578,21 +578,7 @@ body{margin:0;background:var(--bg);color:var(--fg);
 /* Staggered enter: header, chart, then each week group. */
 .rise{animation:rise .5s cubic-bezier(.2,0,0,1) both;animation-delay:calc(var(--i,0)*100ms)}
 @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-@media (prefers-reduced-motion:reduce){
- .rise{animation:none}
- .card:hover{transform:none}
- a.chip:active{transform:none}
- /* The reveal still happens, it just stops moving. */
- .pop{transform:none;transition-duration:.01ms}
- .pop-row{opacity:1;transform:none;transition-delay:0s!important;transition-duration:.01ms}
- details[open]>.recap,details[open]>.cards{animation:none}
- .weekhead::before{transition:none}
- .card,.bar i,.bar b,.bar em{animation:none}
- h1 .wt{animation:none;opacity:1}
- .thumb{transition:opacity .2s}
- .more{transition:none}
- .tile:hover,.card:hover,.ghost:hover{transform:none}
-}
+
 
 /* Keyboard focus must stay visible: every chip is a link. */
 a:focus-visible{outline:2px solid var(--brand);outline-offset:3px;border-radius:8px}
@@ -605,12 +591,29 @@ h1 span{color:var(--accent)}
 h1 .wt{display:inline-block;font-style:normal;font-size:1.32em;font-weight:800;
  letter-spacing:-.045em;margin-right:.05em;vertical-align:-.02em;
  background-image:linear-gradient(135deg,#c4b5fd 0%,#8b6dff 45%,#5b3df5 100%);
+ background-size:220% 100%;background-position:0% 50%;
  -webkit-background-clip:text;background-clip:text;color:transparent;
  -webkit-text-fill-color:transparent;
- transform:rotate(-7deg);transform-origin:55% 65%;
- animation:tilt .65s var(--spring) both}
+ transform:rotate(-7deg);transform-origin:55% 65%;cursor:default;
+ animation:tilt .65s var(--spring) both;
+ transition:background-position .55s var(--ease)}
 @keyframes tilt{from{opacity:0;transform:rotate(4deg) scale(.86)}
  to{opacity:1;transform:rotate(-7deg) scale(1)}}
+/* Hover does a double-take: it flinches upright, overshoots, and the gradient
+   sweeps across. Only the element itself moves, so the text clip stays aligned. */
+h1 .wt:hover{background-position:100% 50%;animation:wtf .6s var(--spring)}
+@keyframes wtf{
+ 0%{transform:rotate(-7deg) scale(1)}
+ 18%{transform:rotate(8deg) scale(1.16)}
+ 42%{transform:rotate(-13deg) scale(1.16)}
+ 66%{transform:rotate(5deg) scale(1.08)}
+ 84%{transform:rotate(-9deg) scale(1.02)}
+ 100%{transform:rotate(-7deg) scale(1)}}
+/* The why, set apart as its own surface so it reads before the numbers do. */
+.pitch{max-width:66ch;margin:18px 0 16px;padding:15px 19px;background:var(--card);
+ border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:14px;
+ box-shadow:var(--edge);color:var(--muted);font-size:15px;line-height:1.62;text-wrap:pretty}
+.pitch b{color:var(--fg);font-weight:660}
 .sub{color:var(--muted);font-size:14.5px;margin:0 0 40px;letter-spacing:-.01em}
 
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:48px}
@@ -809,8 +812,36 @@ a.chip:active{transform:scale(.96)}
  padding-left:2px}
 
 .empty-note{color:var(--muted);font-size:14px;padding:22px 0}
-footer{margin-top:56px;border-top:1px solid var(--hair);color:var(--faint);font-size:12px;
+footer{display:flex;flex-direction:column;gap:16px;margin-top:56px;
+ border-top:1px solid var(--hair);color:var(--faint);font-size:12px;
  line-height:1.65;padding-top:18px;text-wrap:pretty}
+footer p{margin:0}
+/* Byline sits above the small print, aligned right, reusing the GitHub mark
+   already in the sprite rather than shipping a second copy of it. */
+.by{align-self:flex-end;display:inline-flex;align-items:center;gap:8px;padding:8px 13px;
+ background:var(--card);border:1px solid var(--line);border-radius:11px;box-shadow:var(--edge);
+ color:var(--muted);font-size:12.5px;font-weight:600;white-space:nowrap;
+ transition:color .25s var(--ease),border-color .25s var(--ease),transform .3s var(--spring)}
+.by:hover{color:var(--fg);border-color:var(--brand);transform:translateY(-2px)}
+.by .ico{width:15px;height:15px;fill:currentColor;flex:none}
+
+/* Last on purpose: these override rules declared further up, and at equal
+   specificity the later rule wins. Higher in the sheet they would do nothing. */
+@media (prefers-reduced-motion:reduce){
+ .rise{animation:none}
+ .card:hover{transform:none}
+ a.chip:active{transform:none}
+ /* The reveal still happens, it just stops moving. */
+ .pop{transform:none;transition-duration:.01ms}
+ .pop-row{opacity:1;transform:none;transition-delay:0s!important;transition-duration:.01ms}
+ details[open]>.recap,details[open]>.cards{animation:none}
+ .weekhead::before{transition:none}
+ .card,.bar i,.bar b,.bar em{animation:none}
+ h1 .wt,h1 .wt:hover{animation:none;opacity:1}
+ .thumb{transition:opacity .2s}
+ .more{transition:none}
+ .tile:hover,.card:hover,.ghost:hover{transform:none}
+}
 """
 
 # Official marks, defined once as <symbol>s and referenced per chip, so the page
@@ -1318,6 +1349,9 @@ def cmd_report(argv: list[str]) -> int:
     body = f"""{SPRITE}<div class="wrap">
 <header class="rise" style="--i:0">
 <h1><em class="wt">WT*</em> did I just <span>ship</span>?</h1>
+<p class="pitch"><b>AI burnout is real.</b> You shipped all week and cannot name one thing you did.
+Not last week, not yesterday. This reads your own sessions back to you: what rolled out,
+which tickets you touched, what you actually asked the agent. Walk into standup ready.</p>
 <p class="sub">Last {weeks} weeks &middot; {span_days} days of history &middot; updated {datetime.now():%a %-d %b, %H:%M}</p>
 </header>
 <div class="tiles rise" style="--i:1">
@@ -1349,7 +1383,9 @@ def cmd_report(argv: list[str]) -> int:
   </div>
 </div>
 {''.join(sections) or '<p class="empty-note">Nothing recorded yet. Run <code>standup.py backfill</code>.</p>'}
-<footer>Built from Claude Code transcripts on this machine. Hours are time at keyboard: gaps over
+<footer>
+<a class="by" href="https://github.com/OmriGM" target="_blank" rel="noreferrer">{GITHUB_SVG}<span>Built by Omri Grossman</span></a>
+<p>Built from Claude Code transcripts on this machine. Hours are time at keyboard: gaps over
 {IDLE_GAP_MINUTES} minutes are not counted, and a session resumed across weeks is split into the weeks it was
 actually worked. A session is a unit of <em>work</em>, not of delivery &mdash; the PR and ticket chips are the
 shipped output. The chart counts each PR once, in the week it first appears, so revisiting an old PR does not
@@ -1369,7 +1405,8 @@ recorded before Claude Code reported usage show no token figure at all rather th
 (saturating at 3h) and 8 for depth of back-and-forth (saturating at 60 turns). The caps are the point &mdash; a
 long session with nothing to show for it cannot outrank one that opened a PR. Sorting reorders cards inside each
 week, so the weekly totals above stay true. Week recaps are written by a local <code>claude -p</code> call and
-cached; regenerate them with <code>standup.py report --summaries</code>.</footer>
+cached; regenerate them with <code>standup.py report --summaries</code>.</p>
+</footer>
 </div>
 <script>
 (() => {{

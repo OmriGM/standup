@@ -50,15 +50,29 @@ Pick one or the other. Doing both records every session twice.
 ## Updating
 
 ```
-claude plugin marketplace update standup
-claude plugin update standup@standup
+claude plugin marketplace update omrigm
+claude plugin update standup@omrigm
 ```
 
 Then restart Claude Code. Nothing updates on its own, and starting a new session is not
-enough on its own either.
+enough by itself.
 
-The `@standup` suffix is the marketplace name and it is required here. Plain
+The `@omrigm` suffix names the marketplace and is required. Plain
 `claude plugin update standup` fails with `Plugin "standup" not found`.
+
+<details>
+<summary>Installed before August 2026?</summary>
+
+The marketplace used to be called `standup` too, which made the id an awkward
+`standup@standup`. Re-add it once:
+
+```
+/plugin marketplace remove standup
+/plugin marketplace add OmriGM/standup
+/plugin install standup
+```
+
+</details>
 
 ## What you get
 
@@ -124,17 +138,16 @@ whole history, so don't send the file to anyone.
 
 ## Releasing
 
-For anyone working on standup itself:
+For anyone working on standup itself. There is one manual step:
 
-```bash
-# bump "version" in .claude-plugin/plugin.json first
-claude plugin validate .
-claude plugin tag .
-git push origin main --tags
-```
+1. Bump `version` in `.claude-plugin/plugin.json`.
+2. Commit and push to `main`.
 
-CI runs the same checks on every push. Skipping the version bump means nobody receives
-the change, because installs are cached per version.
+That's the whole process. CI runs the checks, then tags the commit and publishes a GitHub
+Release on its own. Don't create releases by hand.
+
+Installs are cached per version, so a change pushed without a bump reaches nobody. CI
+fails the build if you forget. See [CLAUDE.md](CLAUDE.md) for the rest.
 
 ## Requirements
 

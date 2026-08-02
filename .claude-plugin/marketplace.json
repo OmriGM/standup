@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "standup",
-  "description": "What your Claude Code sessions actually shipped, one page per week.",
+  "name": "omrigm",
+  "description": "Omri Grossman's Claude Code plugins.",
   "owner": {
     "name": "Omri Grossman",
     "url": "https://github.com/OmriGM"

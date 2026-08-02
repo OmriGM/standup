@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       # The oldest version the README promises, so the claim is tested rather than assumed.
       - uses: actions/setup-python@v5
@@ -26,3 +28,7 @@ jobs:
 
       - name: Manifests
         run: python3 .github/check_manifests.py
+
+      - name: Shipped changes must bump the version
+        if: github.event_name == 'push'
+        run: python3 .github/check_version_bumped.py

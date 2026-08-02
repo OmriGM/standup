@@ -1,6 +1,6 @@
 {
   "name": "standup",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "description": "Records what every Claude Code session actually shipped, then renders it as a page you can read before standup.",
   "author": {
     "name": "Omri Grossman",

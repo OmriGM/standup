@@ -10,8 +10,9 @@ actually asked for. Open it before standup.
 
 No API keys. No account. Nothing leaves your machine.
 
-<!-- Add a screenshot at docs/standup.png and uncomment:
-![standup](docs/standup.png)
+<!-- SCREENSHOT 1 of 3. Drop the file at docs/hero.png, then delete this comment
+     wrapper so the image below renders. See docs/README.md for how to shoot it.
+![The standup page: a week of coding sessions ranked by what they shipped, with pull requests, tickets, and a chart of pull requests opened per week](docs/hero.png)
 -->
 
 ## Install
@@ -87,6 +88,14 @@ The marketplace used to be called `standup` too, which made the id an awkward
 - **Click a card** for the detail: repo and branch, time, turns, tokens, and the full
   thing you originally asked.
 - **A one-line summary of each week**, if you want it. See below.
+
+<!-- SCREENSHOT 2 of 3. Drop the file at docs/week.png, then delete this comment wrapper.
+![A week expanded, each session showing its score and the pull requests and tickets it produced](docs/week.png)
+-->
+
+<!-- SCREENSHOT 3 of 3. Drop the file at docs/card.png, then delete this comment wrapper.
+![A single session opened, showing the repo and branch, time at the keyboard against elapsed time, turns, and the token split](docs/card.png)
+-->
 
 ## Settings
 

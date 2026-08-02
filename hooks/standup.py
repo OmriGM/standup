@@ -227,6 +227,15 @@ def _self_check() -> None:
     CONFIG = real_config
     _config.cache_clear()
 
+    # A pasted path becomes its filename, and real URLs survive untouched.
+    assert _tidy_ask("verify this? /Users/me/.claude/jobs/9f/pasted-1.png") == "verify this? pasted-1.png"
+    assert _tidy_ask("see https://linear.app/acme/issue/ABC-1") == "see https://linear.app/acme/issue/ABC-1"
+    assert _tidy_ask("check github.com/o/r/pull/3") == "check github.com/o/r/pull/3"
+    assert _tidy_ask("") == "" and _tidy_ask("no paths here") == "no paths here"
+    # Shallow paths are left alone; collapsing "/tmp/x" to "x" would lose the meaning.
+    assert _tidy_ask("in /tmp/x.log") == "in /tmp/x.log"
+    assert _local_images("/no/such/file/nope.png") == []
+
     # The tool must never ingest its own summary runs, in either direction.
     assert _is_self_generated(_polish_prompt([{"session_id": "x", "started_at": "", "title": "t"}]))
     assert not _is_self_generated("fix the login bug")
@@ -692,6 +701,11 @@ body.reveal .card.hid:hover{opacity:1}
 /* Clamped so a long opening request can't stretch its whole row. */
 .card .ask{margin:7px 0 0;color:var(--muted);font-size:13px;line-height:1.55;text-wrap:pretty;
  display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+/* Pasted screenshots: contained, never dictating the card's height. */
+.shot{display:block;margin-top:10px;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+.shot img{display:block;width:100%;max-height:150px;object-fit:cover;object-position:top}
+.shot:hover{border-color:var(--brand)}
+
 /* margin-top:auto keeps chips on the baseline of every card in the row. */
 .card .foot{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:auto;padding-top:14px}
 .card .foot:empty{display:none;}
@@ -771,6 +785,63 @@ SPRITE = (
     '0-.354l-6.25-6.25a.25.25 0 0 0-.177-.073H2.75a.25.25 0 0 0-.25.25ZM6 5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z"/>'
     "</symbol></svg>"
 )
+
+
+# Deep absolute paths only, and never the tail of a URL: the lookbehind keeps
+# "https://host/a/b" from matching at its second slash.
+PATH_RE = re.compile(r"(?<![:\w/])(?:file://)?/(?:[^\s/'\"<>]+/){2,}[^\s'\"<>]+")
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+MAX_EMBED_BYTES = 1_000_000
+
+
+def _tidy_ask(text: str) -> str:
+    """Collapse absolute paths to their basename so a card reads as a sentence.
+
+    A pasted screenshot turns the opening prompt into a wall of path, which tells the
+    reader nothing the filename does not.
+    """
+    return PATH_RE.sub(lambda m: os.path.basename(m.group(0).rstrip("/")), text or "")
+
+
+def _local_images(text: str) -> list[Path]:
+    """Image files named in a prompt that are still on disk."""
+    found = []
+    for raw in PATH_RE.findall(text or ""):
+        p = Path(raw.replace("file://", "", 1))
+        if p.suffix.lower() in IMAGE_SUFFIXES and p.is_file() and p not in found:
+            found.append(p)
+    return found
+
+
+def _image_html(text: str) -> str:
+    """Inline pasted screenshots, but only when the user opted in.
+
+    Off by default on purpose. Only a data URI renders reliably (Firefox refuses
+    file:// subresources outside the document's own directory), and that bakes the
+    picture into a page whose whole privacy story is "do not send this to anyone".
+    """
+    if not _config().get("embed_images"):
+        return ""
+    import base64
+    import mimetypes
+
+    out = []
+    for p in _local_images(text):
+        try:
+            blob = p.read_bytes()
+        except OSError:
+            continue
+        if len(blob) > MAX_EMBED_BYTES:
+            continue
+        mime = mimetypes.guess_type(p.name)[0] or "image/png"
+        b64 = base64.b64encode(blob).decode("ascii")
+        # The thumbnail is embedded so it always renders; the link points at the original
+        # file so full size costs nothing. Embedding both would double the page for it.
+        out.append(
+            f'<a class="shot" href="{html.escape(p.as_uri())}" target="_blank" rel="noreferrer">'
+            f'<img loading="lazy" alt="{html.escape(p.name)}" src="data:{mime};base64,{b64}"></a>'
+        )
+    return "".join(out)
 
 
 def _tokens(r: dict) -> int:
@@ -1023,8 +1094,10 @@ def cmd_report(argv: list[str]) -> int:
         cards = []
         for r in wrows:
             fixed = wcards.get(r.get("session_id", ""), {})
-            name = fixed.get("title") or r.get("title") or ""
-            ask = fixed.get("line") or r.get("ask") or ""
+            raw_ask = r.get("ask") or ""
+            name = _tidy_ask(fixed.get("title") or r.get("title") or "")
+            ask = fixed.get("line") or _tidy_ask(raw_ask)
+            shots = _image_html(raw_ask)
             for p in r.get("prs", []):
                 wprs.setdefault((p["repo"], p["number"]), (p.get("url") or "#", name))
             for t in r.get("tickets", []):
@@ -1053,6 +1126,7 @@ def cmd_report(argv: list[str]) -> int:
                 f'<span class="score" title="Impact {score}">{score}</span>'
                 '<button type="button" class="hide" title="Hide this session"></button></div>'
                 + (f'<p class="ask">{html.escape(ask)}</p>' if ask else "")
+                + shots
                 + f'<div class="foot">{"".join(chips)}</div></article>'
             )
 

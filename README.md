@@ -75,7 +75,8 @@ Optional. Create `~/.claude/standup/config.json`:
 {
   "ticket_url": "https://linear.app/your-org/issue/{key}",
   "ignore_prefixes": ["INC", "SEV"],
-  "model": "haiku"
+  "model": "haiku",
+  "embed_images": false
 }
 ```
 
@@ -84,6 +85,16 @@ Optional. Create `~/.claude/standup/config.json`:
 | `ticket_url` | Template with a `{key}` placeholder. Works with Linear, Jira, GitHub Issues, Shortcut, anything with a predictable URL. Unset means tickets render as plain text instead of guessing at a link. |
 | `ignore_prefixes` | Extra `ABC-123` shaped prefixes that are not tickets in your world. Universal false positives like `CVE` and `RFC` are already excluded. |
 | `model` | Model used by `--summaries`. Defaults to `haiku`. |
+| `embed_images` | Show screenshots you pasted into a prompt, as thumbnails on the card. Off by default, see below. |
+
+Absolute file paths in a prompt are always collapsed to their filename, so a card reads
+`Can you help me verify this? pasted-1.png` rather than a wall of path.
+
+`embed_images` goes further and inlines the picture itself. It is off by default for one
+reason: only a base64 data URI renders reliably (Firefox refuses `file://` subresources
+outside the document's own directory), and that bakes your screenshots into a page the
+privacy section tells you not to share. It also grows the page by about a third more than
+each image's size on disk.
 
 Pull request icons are chosen from the PR's own host, so GitHub gets its mark and every
 other forge gets a neutral pull-request glyph.

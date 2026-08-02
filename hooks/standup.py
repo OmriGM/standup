@@ -588,6 +588,7 @@ body{margin:0;background:var(--bg);color:var(--fg);
  details[open]>.recap,details[open]>.cards{animation:none}
  .weekhead::before{transition:none}
  .card,.bar i,.bar b,.bar em{animation:none}
+ h1 .wt{animation:none;opacity:1}
  .thumb{transition:opacity .2s}
  .more{transition:none}
  .tile:hover,.card:hover,.ghost:hover{transform:none}
@@ -600,6 +601,16 @@ h1{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",ui-sans-serif,s
  font-size:40px;font-weight:700;line-height:1.08;letter-spacing:-.035em;margin:0 0 8px;
  text-wrap:balance}
 h1 span{color:var(--accent)}
+/* The one gradient on the page, deliberately, because it is the logotype. */
+h1 .wt{display:inline-block;font-style:normal;font-size:1.32em;font-weight:800;
+ letter-spacing:-.045em;margin-right:.05em;vertical-align:-.02em;
+ background-image:linear-gradient(135deg,#c4b5fd 0%,#8b6dff 45%,#5b3df5 100%);
+ -webkit-background-clip:text;background-clip:text;color:transparent;
+ -webkit-text-fill-color:transparent;
+ transform:rotate(-7deg);transform-origin:55% 65%;
+ animation:tilt .65s var(--spring) both}
+@keyframes tilt{from{opacity:0;transform:rotate(4deg) scale(.86)}
+ to{opacity:1;transform:rotate(-7deg) scale(1)}}
 .sub{color:var(--muted);font-size:14.5px;margin:0 0 40px;letter-spacing:-.01em}
 
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:48px}
@@ -765,9 +776,12 @@ details[open]>.recap,details[open]>.cards{animation:rise .3s cubic-bezier(.2,0,0
 .card.hid{display:none}
 .card.hid .hide{opacity:1}
 .card.hid .hide::before{content:"\\21ba"}
-/* Revealed only while the Hidden toggle is on, and clearly marked as set aside. */
-body.reveal .card.hid{display:flex;border-style:dashed;opacity:.55}
-body.reveal .card.hid:hover{opacity:1}
+/* Revealed only while the Hidden toggle is on, and clearly marked as set aside.
+   Dimming uses filter, not opacity: every card runs the rise animation with a both
+   fill, and an animation's final value beats a plain opacity declaration. */
+body.reveal .card.hid{display:flex;border-style:dashed;
+ filter:grayscale(1) opacity(.45);transition:filter .3s var(--ease)}
+body.reveal .card.hid:hover{filter:none}
 /* Clamped so a long opening request can't stretch its whole row. */
 .card .ask{margin:7px 0 0;color:var(--muted);font-size:13px;line-height:1.55;text-wrap:pretty;
  display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
@@ -1303,7 +1317,7 @@ def cmd_report(argv: list[str]) -> int:
 
     body = f"""{SPRITE}<div class="wrap">
 <header class="rise" style="--i:0">
-<h1>WTF did I <span>ship</span>?</h1>
+<h1><em class="wt">WT*</em> did I <span>ship</span>?</h1>
 <p class="sub">Last {weeks} weeks &middot; {span_days} days of history &middot; updated {datetime.now():%a %-d %b, %H:%M}</p>
 </header>
 <div class="tiles rise" style="--i:1">

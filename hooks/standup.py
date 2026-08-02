@@ -794,47 +794,6 @@ a.chip:active{transform:scale(.96)}
 .chip.time{background:transparent;color:var(--faint);font-weight:500;border-color:transparent;
  padding-left:2px}
 
-/* Native dialog: Escape, backdrop and focus handling come free. */
-#settings{border:0;padding:0;background:transparent;max-width:min(94vw,460px);width:100%;
- color:var(--fg);margin:auto}
-#settings::backdrop{background:rgba(0,0,0,.55);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
-#settings[open]{animation:sheet .42s var(--spring) both}
-#settings[open]::backdrop{animation:fade .3s var(--ease) both}
-@keyframes sheet{from{opacity:0;transform:translateY(14px) scale(.96)}to{opacity:1;transform:none}}
-.sheet{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:8px 22px 22px;
- box-shadow:var(--edge),0 30px 70px -20px #000;display:flex;flex-direction:column;gap:2px}
-.sheet header{display:flex;align-items:center;justify-content:space-between;padding:14px 0 10px}
-.sheet h3{margin:0;font-size:17px;font-weight:650;letter-spacing:-.02em}
-.sheet .x{appearance:none;border:0;background:transparent;color:var(--faint);font-size:22px;
- line-height:1;cursor:pointer;padding:2px 6px;border-radius:8px;transition:color .2s var(--ease)}
-.sheet .x:hover{color:var(--fg);background:var(--chip)}
-.row{display:flex;align-items:center;justify-content:space-between;gap:14px;
- padding:12px 0;border-top:1px solid var(--hair);font-size:13px;font-weight:550}
-.row>span{flex:none;color:var(--muted)}
-.row input[type=text]{flex:1;min-width:0;background:var(--bg);border:1px solid var(--line);
- border-radius:9px;padding:8px 11px;color:var(--fg);font:inherit;font-size:12.5px;
- transition:border-color .2s var(--ease)}
-.row input[type=text]:focus{outline:0;border-color:var(--brand)}
-.seg{display:flex;gap:2px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px}
-.seg button{appearance:none;border:0;background:transparent;color:var(--muted);cursor:pointer;
- font:600 11.5px/1 inherit;padding:7px 10px;border-radius:8px;
- transition:background-color .3s var(--ease),color .3s var(--ease)}
-.seg button.on{background:var(--brand);color:#fff}
-/* Apple-style switch: the knob slides rather than the box blinking. */
-.sw{appearance:none;width:44px;height:26px;border-radius:13px;background:var(--line);
- position:relative;cursor:pointer;flex:none;transition:background-color .3s var(--ease)}
-.sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;
- background:#fff;transition:transform .3s var(--spring)}
-.sw:checked{background:var(--brand)}
-.sw:checked::after{transform:translateX(18px)}
-.sw:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.sheet .hint{margin:14px 0 0;color:var(--faint);font-size:11.5px;line-height:1.6}
-.sheet .hint code{color:var(--muted);overflow-wrap:anywhere}
-#s-out{margin:10px 0 14px;padding:12px 14px;background:var(--bg);border:1px solid var(--line);
- border-radius:10px;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);
- white-space:pre-wrap;max-height:180px;overflow:auto}
-.ghost.wide{width:100%;padding:12px}
-
 .empty-note{color:var(--muted);font-size:14px;padding:22px 0}
 footer{margin-top:56px;border-top:1px solid var(--hair);color:var(--faint);font-size:12px;
  line-height:1.65;padding-top:18px;text-wrap:pretty}
@@ -955,43 +914,6 @@ def _image_html(text: str) -> str:
     return "".join(out)
 
 
-def _settings_dialog() -> str:
-    """Settings sheet, prefilled from the live config.
-
-    A file:// page cannot write to disk, so this composes the JSON and hands it over
-    rather than pretending to save. Native <dialog> brings Escape, backdrop and focus
-    handling without a line of script.
-    """
-    cfg = _config()
-    start = str(cfg.get("week_start", "monday")).lower()
-    if start not in WEEK_STARTS:
-        start = "monday"
-    seg = "".join(
-        f'<button type="button" data-v="{v}"{" class=\"on\"" if v == start else ""}>{lbl}</button>'
-        for v, lbl in (("sunday", "Sun to Thu"), ("monday", "Mon to Fri"), ("saturday", "Sat to Wed"))
-    )
-    ignore = ", ".join(str(x) for x in cfg.get("ignore_prefixes", []) if x)
-    return f"""<dialog id="settings" aria-label="Settings">
-<form method="dialog" class="sheet">
-  <header><h3>Settings</h3><button class="x" value="close" aria-label="Close">&times;</button></header>
-  <label class="row"><span>Working week</span><div class="seg">{seg}</div></label>
-  <label class="row"><span>Ticket URL</span>
-    <input id="s-url" type="text" placeholder="https://linear.app/acme/issue/{{key}}"
-     value="{html.escape(str(cfg.get("ticket_url", "")))}"></label>
-  <label class="row"><span>Not tickets</span>
-    <input id="s-ign" type="text" placeholder="INC, SEV" value="{html.escape(ignore)}"></label>
-  <label class="row"><span>Summary model</span>
-    <input id="s-model" type="text" placeholder="haiku" value="{html.escape(str(cfg.get("model", "")))}"></label>
-  <label class="row"><span>Embed screenshots</span>
-    <input id="s-img" type="checkbox" class="sw"{" checked" if cfg.get("embed_images") else ""}></label>
-  <p class="hint">This page cannot write to disk. Save the JSON below to
-   <code>{html.escape(str(CONFIG))}</code>, and it applies the next time the page is built.</p>
-  <pre id="s-out"></pre>
-  <button type="button" class="ghost wide" id="s-copy">Copy config.json</button>
-</form>
-</dialog>"""
-
-
 def _details(r: dict, score: int) -> str:
     """The panel behind a card. Everything here is already in the row, unshown until now."""
     rows: list[tuple[str, str]] = []
@@ -1025,22 +947,11 @@ def _details(r: dict, score: int) -> str:
             ),
         ))
 
-    # Show the arithmetic rather than asking anyone to trust the number.
-    parts = []
-    if r.get("prs"):
-        parts.append(f"<span><b>{40 * len(r['prs'])}</b> {len(r['prs'])} PR</span>")
-    if r.get("tickets"):
-        parts.append(f"<span><b>{12 * len(r['tickets'])}</b> {len(r['tickets'])} tickets</span>")
-    parts.append(f"<span><b>{round(min(mins, 180) / 180 * 20)}</b> time</span>")
-    parts.append(f"<span><b>{round(min(r.get('turns', 0), 60) / 60 * 8)}</b> depth</span>")
-    parts.append(f"<span><b>{score}</b> total</span>")
-
     dl = "".join(f"<dt>{k}</dt><dd>{v}</dd>" for k, v in rows)
     full = _tidy_ask(r.get("ask") or "")
     return (
         '<div class="more"><div class="more-in">'
         + (f"<dl>{dl}</dl>" if dl else "")
-        + f'<div class="bd">{"".join(parts)}</div>'
         + (f'<p class="full">{html.escape(full)}</p>' if full else "")
         + "</div></div>"
     )
@@ -1186,7 +1097,7 @@ def _week_polish(by_week: dict[date, list[dict]], refresh: bool) -> dict[date, d
 
 
 # Where the working week begins. Sunday for much of the Middle East, Monday for ISO.
-WEEK_STARTS = {"sunday": 6, "monday": 0, "saturday": 5}
+WEEK_STARTS = {"sunday": 6, "monday": 0}
 
 
 def _week_start_weekday() -> int:
@@ -1390,9 +1301,9 @@ def cmd_report(argv: list[str]) -> int:
         hi = datetime.fromisoformat(rows[-1]["started_at"].replace("Z", "+00:00"))
         span_days = (hi - lo).days + 1
 
-    body = f"""{SPRITE}{_settings_dialog()}<div class="wrap">
+    body = f"""{SPRITE}<div class="wrap">
 <header class="rise" style="--i:0">
-<h1>What I <span>shipped</span></h1>
+<h1>WTF did I <span>ship</span>?</h1>
 <p class="sub">Last {weeks} weeks &middot; {span_days} days of history &middot; updated {datetime.now():%a %-d %b, %H:%M}</p>
 </header>
 <div class="tiles rise" style="--i:1">
@@ -1413,7 +1324,6 @@ def cmd_report(argv: list[str]) -> int:
 <div class="sortbar rise" style="--i:2">
   <h2>Sessions by week</h2>
   <div class="tools">
-    <button type="button" class="ghost gear" aria-haspopup="dialog">Settings</button>
     <button type="button" class="ghost hiddenbtn" aria-pressed="false" hidden>Hidden 0</button>
     <div class="sorts" role="group" aria-label="Sort sessions within each week">
       <span class="thumb" aria-hidden="true"></span>
@@ -1534,38 +1444,6 @@ cached; regenerate them with <code>standup.py report --summaries</code>.</footer
     const opening = !c.classList.contains('open');
     c.classList.toggle('open', opening);
     if (opening) for (const o of cards) if (o !== c) o.classList.remove('open');
-  }});
-
-  // Settings sheet. The JSON is always visible, so a blocked clipboard is an
-  // inconvenience rather than a dead end.
-  const dlg = document.querySelector('#settings');
-  const out = document.querySelector('#s-out');
-  const copy = document.querySelector('#s-copy');
-  const val = id => document.querySelector(id).value.trim();
-
-  const compose = () => {{
-    const cfg = {{}};
-    if (val('#s-url')) cfg.ticket_url = val('#s-url');
-    const ign = val('#s-ign').split(',').map(s => s.trim()).filter(Boolean);
-    if (ign.length) cfg.ignore_prefixes = ign;
-    if (val('#s-model')) cfg.model = val('#s-model');
-    cfg.week_start = dlg.querySelector('.seg button.on').dataset.v;
-    if (document.querySelector('#s-img').checked) cfg.embed_images = true;
-    out.textContent = JSON.stringify(cfg, null, 2);
-  }};
-
-  document.querySelector('.gear').addEventListener('click', () => {{ compose(); dlg.showModal(); }});
-  // Clicking the backdrop lands on the dialog itself, never on the sheet inside it.
-  dlg.addEventListener('click', e => {{ if (e.target === dlg) dlg.close(); }});
-  for (const el of dlg.querySelectorAll('input')) el.addEventListener('input', compose);
-  for (const b of dlg.querySelectorAll('.seg button')) b.addEventListener('click', () => {{
-    for (const x of dlg.querySelectorAll('.seg button')) x.classList.toggle('on', x === b);
-    compose();
-  }});
-  copy.addEventListener('click', async () => {{
-    try {{ await navigator.clipboard.writeText(out.textContent); copy.textContent = 'Copied'; }}
-    catch {{ copy.textContent = 'Select the text above'; }}
-    setTimeout(() => {{ copy.textContent = 'Copy config.json'; }}, 1800);
   }});
 
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;

@@ -1,6 +1,6 @@
 # standup
 
-**What did you actually ship last week?**
+**WTF did I ship last week?**
 
 If you run a few Claude Code sessions a day, you genuinely cannot remember. `standup`
 reads the transcripts you already have on disk and turns them into one page: every
@@ -65,19 +65,13 @@ costs nothing but a file read.
 - **Sort** by recency, impact, duration or token count. **Hide** sessions you never want
   to see again, and unhide them later.
 - **Click any card** to open it: repo and branch, active time against elapsed time, turn
-  count, the token split, the full opening prompt, and the arithmetic behind the impact
-  score so you never have to take the number on trust.
+  count, the token split and the full opening prompt.
 - **Token counts** per session and per week, split between generated output, fresh
   input, cache writes and cache reads.
 
 ## Configuration
 
-Press **Settings** on the page to see every option, change it and copy the resulting
-JSON. The page is a static file and cannot write to disk, so you save that JSON yourself
-and it applies the next time the page is built, which happens at the end of every
-session anyway.
-
-The file is `~/.claude/standup/config.json`, and everything in it is optional:
+Optional. Create `~/.claude/standup/config.json`:
 
 ```json
 {
@@ -91,7 +85,7 @@ The file is `~/.claude/standup/config.json`, and everything in it is optional:
 
 | Key | Meaning |
 | --- | --- |
-| `week_start` | `monday` (ISO, the default), `sunday` or `saturday`. Your working week is not everyone's, and a Sunday to Thursday week groups differently. Time is stored per day, so changing this regroups your existing history rather than needing a re-record. |
+| `week_start` | `monday` (ISO, the default) or `sunday`. Your working week is not everyone's, and a Sunday to Thursday week groups differently. Time is stored per day, so changing this regroups your existing history rather than needing a re-record. |
 | `ticket_url` | Template with a `{key}` placeholder. Works with Linear, Jira, GitHub Issues, Shortcut, anything with a predictable URL. Unset means tickets render as plain text instead of guessing at a link. |
 | `ignore_prefixes` | Extra `ABC-123` shaped prefixes that are not tickets in your world. Universal false positives like `CVE` and `RFC` are already excluded. |
 | `model` | Model used by `--summaries`. Defaults to `haiku`. |

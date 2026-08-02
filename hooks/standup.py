@@ -580,7 +580,7 @@ body{margin:0;background:var(--bg);color:var(--fg);
 .wrap{max-width:1180px;margin:0 auto;padding:60px 26px 96px}
 
 /* Staggered enter: header, chart, then each week group. */
-.rise{animation:rise .5s cubic-bezier(.2,0,0,1) both;animation-delay:calc(var(--i,0)*100ms)}
+.rise{animation:rise .5s cubic-bezier(.2,0,0,1) backwards;animation-delay:calc(var(--i,0)*100ms)}
 @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 
 
@@ -643,7 +643,7 @@ h2{font-size:11.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--fa
 .bar i{display:block;width:100%;min-height:3px;border-radius:6px;background:var(--brand);
  transition:background-color .25s var(--ease);
  /* Grow out of the axis on load, one after another. */
- transform-origin:bottom;animation:grow .8s var(--ease) both;
+ transform-origin:bottom;animation:grow .8s var(--ease) backwards;
  animation-delay:calc(var(--i,0)*70ms + 150ms)}
 @keyframes grow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
 .bar b,.bar em{animation:fade .5s var(--ease) both;animation-delay:calc(var(--i,0)*70ms + 350ms)}
@@ -671,22 +671,24 @@ h2{font-size:11.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--fa
 .sorts{position:relative;display:flex;gap:2px;background:var(--card);border:1px solid var(--line);
  border-radius:12px;padding:4px;box-shadow:var(--edge)}
 /* One pill that slides between options, rather than a background flicking on and off. */
-.thumb{position:absolute;top:4px;bottom:4px;left:0;width:0;border-radius:9px;background:var(--brand);
+.thumb{position:absolute;top:4px;bottom:4px;left:0;width:0;border-radius:8px;background:var(--brand);
  opacity:0;transition:transform .42s var(--spring),width .42s var(--spring),opacity .2s}
 .thumb.ready{opacity:1}
 .ghost{appearance:none;background:var(--card);border:1px solid var(--line);color:var(--muted);
- border-radius:12px;padding:10px 15px;font:600 12px/1 inherit;cursor:pointer;box-shadow:var(--edge);
+ border-radius:12px;padding:14px 15px;font:600 12px/1 inherit;cursor:pointer;box-shadow:var(--edge);
  transition:background-color .25s var(--ease),color .25s var(--ease),border-color .25s var(--ease),
  transform .3s var(--spring)}
 .ghost:hover{color:var(--fg);border-color:var(--brand);transform:translateY(-1px)}
-.ghost:active{transform:scale(.97)}
+.ghost:active{transform:scale(.96)}
 .ghost.on{background:var(--brand);border-color:var(--brand);color:#fff}
 .ghost:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .sortbtn{position:relative;z-index:1;appearance:none;border:0;background:transparent;
  color:var(--muted);cursor:pointer;font:600 12px/1 inherit;letter-spacing:.01em;
- padding:8px 14px;border-radius:9px;transition:color .25s var(--ease)}
+ padding:8px 14px;border-radius:8px;transition:color .25s var(--ease)}
+.sortbtn::after{content:"";position:absolute;inset:-6px 0}
 .sortbtn:hover{color:var(--fg)}
 .sortbtn.on{color:#fff}
+.sortbtn:active{transform:scale(.96)}
 .sortbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
 .week{margin-bottom:36px}
@@ -723,7 +725,7 @@ details[open]>.weekhead::before{transform:rotate(45deg)}
 .pop-host:hover .pop,.pop-host:focus-within .pop{opacity:1;visibility:visible;transform:none}
 /* Bridges the 10px gap so the pointer can travel into the panel without it closing. */
 .pop::before{content:"";position:absolute;top:-10px;left:0;right:0;height:10px}
-.pop-row{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;
+.pop-row{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:6px;
  font-size:12px;font-weight:600;color:var(--fg);opacity:0;transform:translateY(-4px);
  transition-property:opacity,transform,background-color;transition-duration:.2s;
  transition-timing-function:cubic-bezier(.2,0,0,1)}
@@ -741,6 +743,7 @@ details[open]>.weekhead::before{transform:rotate(45deg)}
  cursor:help;flex:none;
  transition:color .25s var(--ease),border-color .25s var(--ease)}
 .tipinfo>b{font-size:12px;font-weight:700;color:var(--faint);line-height:1}
+.tipinfo::after{content:"";position:absolute;inset:-7px;border-radius:50%}
 .tipinfo:hover{border-color:var(--brand)}
 .tipinfo:hover>b{color:var(--accent)}
 .pop.tip{width:290px;padding:14px 16px;display:block;font-size:12.5px;line-height:1.62;
@@ -762,7 +765,7 @@ details[open]>.recap,details[open]>.cards{animation:rise .3s cubic-bezier(.2,0,0
  border-radius:16px;padding:18px 20px;min-height:132px;cursor:pointer;box-shadow:var(--edge);
  transition:background-color .3s var(--ease),border-color .3s var(--ease),
  transform .4s var(--spring),box-shadow .3s var(--ease);
- animation:rise .5s var(--ease) both;animation-delay:calc(var(--n,0)*35ms)}
+ animation:rise .5s var(--ease) backwards;animation-delay:calc(var(--n,0)*35ms)}
 .card:hover{background:var(--card-hi);border-color:#3a3a45;transform:translateY(-3px);
  box-shadow:var(--edge),0 12px 28px -12px rgba(0,0,0,.7)}
 .card:active{transform:translateY(-1px) scale(.995)}
@@ -785,19 +788,37 @@ details[open]>.recap,details[open]>.cards{animation:rise .3s cubic-bezier(.2,0,0
 .more .bd b{color:var(--accent);font-weight:700}
 .card .top{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
 .card .name{font-weight:650;font-size:14.5px;letter-spacing:-.01em;text-wrap:balance}
-.card .score{flex:none;font-size:11.5px;font-weight:700;color:var(--accent);background:var(--chip);
- border:1px solid var(--line);border-radius:6px;padding:2px 7px;line-height:1.5}
+/* A pill weighted by magnitude: faint when nothing shipped, filled and haloed when
+   plenty did. min-width keeps one and three digit scores on the same optical edge. */
+.card .score{flex:none;min-width:32px;text-align:center;font-size:11.5px;font-weight:700;
+ line-height:1;padding:6px 9px;border-radius:999px;font-variant-numeric:tabular-nums;
+ border:1px solid transparent;
+ transition:background-color .3s var(--ease),color .3s var(--ease),box-shadow .3s var(--ease)}
+.card .score.lo{color:var(--faint);background:transparent;border-color:var(--line)}
+.card .score.mid{color:var(--accent);background:var(--chip);border-color:#352f63}
+.card .score.hi{color:#fff;background:var(--brand);border-color:var(--brand);
+ box-shadow:0 0 0 3px rgba(124,92,255,.15)}
+.card:hover .score.hi{box-shadow:0 0 0 5px rgba(124,92,255,.2)}
 
-/* Hiding stays out of the way until you want it, but never leaves the tab order. */
+/* Hiding stays out of the way until you want it, but never leaves the tab order.
+   The 40px box is mostly transparent and pulled back in with negative margin, so the
+   hit area meets the minimum while the visible control stays small. */
 .hide{appearance:none;border:0;background:transparent;color:var(--faint);cursor:pointer;flex:none;
- font:400 15px/1 inherit;padding:3px 5px;border-radius:6px;opacity:0;
- transition-property:opacity,color,background-color;transition-duration:.15s}
-.hide::before{content:"\\00d7"}
+ display:inline-grid;place-items:center;width:40px;height:40px;margin:-7px;border-radius:50%;
+ opacity:0;transition-property:opacity,color,background-color;transition-duration:.2s;
+ transition-timing-function:var(--ease)}
+.hide .ico{grid-area:1/1;width:14px;height:14px;fill:currentColor;
+ transition-property:opacity,scale,filter;transition-duration:.3s;
+ transition-timing-function:cubic-bezier(.2,0,0,1)}
+/* Cross-fade the two states instead of swapping the glyph outright. */
+.hide .gu{opacity:0;scale:.25;filter:blur(4px)}
+.card.hid .hide .gx{opacity:0;scale:.25;filter:blur(4px)}
+.card.hid .hide .gu{opacity:1;scale:1;filter:blur(0)}
 .card:hover .hide,.hide:focus-visible{opacity:1}
 .hide:hover{color:var(--fg);background:var(--chip)}
+.hide:active{transform:scale(.96)}
 .card.hid{display:none}
 .card.hid .hide{opacity:1}
-.card.hid .hide::before{content:"\\21ba"}
 /* Revealed only while the Hidden toggle is on, and clearly marked as set aside.
    Dimming uses filter, not opacity: every card runs the rise animation with a both
    fill, and an animation's final value beats a plain opacity declaration. */
@@ -808,9 +829,9 @@ body.reveal .card.hid:hover{filter:none}
 .card .ask{margin:7px 0 0;color:var(--muted);font-size:13px;line-height:1.55;text-wrap:pretty;
  display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
 /* Pasted screenshots: contained, never dictating the card's height. */
-.shot{display:block;margin-top:10px;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
-.shot img{display:block;width:100%;max-height:150px;object-fit:cover;object-position:top}
-.shot:hover{border-color:var(--brand)}
+.shot{display:block;margin-top:10px;border-radius:8px;overflow:hidden}
+.shot img{display:block;width:100%;max-height:150px;object-fit:cover;object-position:top;outline:1px solid rgba(255,255,255,.1);outline-offset:-1px;border-radius:8px}
+.shot:hover img{outline-color:var(--brand)}
 
 /* margin-top:auto keeps chips on the baseline of every card in the row. */
 .card .foot{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:auto;padding-top:14px}
@@ -917,6 +938,17 @@ SPRITE = (
     ".91.184 1.238.513l6.25 6.25a1.75 1.75 0 0 1 0 2.474l-5.026 5.026a1.75 1.75 0 0 1-2.474 0l-6.25-6.25A1.75 "
     "1.75 0 0 1 1 7.775Zm1.5 0c0 .066.026.13.073.177l6.25 6.25a.25.25 0 0 0 .354 0l5.025-5.025a.25.25 0 0 0 "
     '0-.354l-6.25-6.25a.25.25 0 0 0-.177-.073H2.75a.25.25 0 0 0-.25.25ZM6 5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z"/>'
+    "</symbol>"
+    # Real glyphs rather than the "x" and "undo" characters, which shift between fonts.
+    '<symbol id="i-x" viewBox="0 0 16 16"><path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 '
+    "0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 "
+    '1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 '
+    '4.78a.75.75 0 0 1 0-1.06Z"/></symbol>'
+    '<symbol id="i-undo" viewBox="0 0 16 16"><path d="M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 '
+    "9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 "
+    "1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 "
+    "0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 "
+    '1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z"/>'
     "</symbol></svg>"
 )
 
@@ -1042,6 +1074,17 @@ def _tok_title(r: dict) -> str:
     parts = [f"{lbl} {_tok(t.get(k, 0))}" for k, lbl in
              (("output", "output"), ("input", "input"), ("cache_write", "cache write"), ("cache_read", "cache read"))]
     return " · ".join(parts)
+
+
+def _score_tier(score: int) -> str:
+    """Weight the badge by magnitude so a wall of cards ranks itself at a glance.
+
+    40 is one pull request, so "mid" means the session shipped something at all and
+    "hi" means it shipped more than once.
+    """
+    if score >= 100:
+        return "hi"
+    return "mid" if score >= 40 else "lo"
 
 
 def _impact_parts(r: dict) -> list[tuple[int, str]]:
@@ -1337,8 +1380,11 @@ def cmd_report(argv: list[str]) -> int:
                 f'data-impact="{score}" data-min="{mins}" data-tok="{tok}" '
                 f'data-sid="{html.escape(r.get("session_id") or "")}">'
                 f'<div class="top"><span class="name">{html.escape(name)}</span>'
-                f'<span class="score" title="{why}">{score}</span>'
-                '<button type="button" class="hide" title="Hide this session"></button></div>'
+                f'<span class="score {_score_tier(score)}" title="{why}">{score}</span>'
+                '<button type="button" class="hide" title="Hide this session">'
+                '<svg class="ico gx" aria-hidden="true"><use href="#i-x"/></svg>'
+                '<svg class="ico gu" aria-hidden="true"><use href="#i-undo"/></svg>'
+                "</button></div>"
                 + (f'<p class="ask">{html.escape(ask)}</p>' if ask else "")
                 + shots
                 + f'<div class="foot">{"".join(chips)}</div>'

@@ -58,35 +58,42 @@ enough by itself.
 The `@omrigm` suffix names the marketplace and is required. Plain
 `claude plugin update standup` fails with `Plugin "standup" not found`.
 
-<details>
-<summary>Installed before August 2026?</summary>
-
-The marketplace used to be called `standup` too, which made the id an awkward
-`standup@standup`. Re-add it once:
-
-```
-/plugin marketplace remove standup
-/plugin marketplace add OmriGM/standup
-/plugin install standup
-```
-
-</details>
-
 ## What you get
 
 - **Your week, in one page.** Sessions grouped by week, newest first.
-- **A score for each one**, so the sessions that shipped something rise to the top. A PR
-  is worth far more than hours spent. A long session with nothing to show for it can
-  never outrank one that opened a pull request.
+- **PRs and tickets** on every card, linked, with a chart of pull requests per week.
 - **Real working time.** Long pauses aren't counted, so an overnight gap isn't billed as
   effort.
-- **PRs and tickets** on every card, linked, with a chart of pull requests per week.
-- **Sort** by newest, score, length or tokens. **Hide** the sessions you don't care about.
-- **Click a card** for the detail: repo and branch, time, turns, tokens, and the full
-  thing you originally asked.
+- **Hide** the sessions you don't care about, and bring them back later.
 - **A one-line summary of each week**, if you want it. See below.
 
+### Sorted by what you actually shipped
+
+Not everything you did last week is worth mentioning. Every session gets an **impact
+score**, and the sessions that shipped something rise to the top:
+
+| | Points |
+| --- | --- |
+| Each pull request | 40 |
+| Each ticket | 12 |
+| Time at the keyboard | up to 20, maxing out at three hours |
+| Back and forth | up to 8, maxing out at sixty turns |
+
+**The caps are the whole idea.** Effort tops out at 28, which is less than a single pull
+request, so a four hour session that produced nothing can never outrank one that opened a
+PR. Hover any score and it shows you its own arithmetic, so the number is never something
+you have to take on faith.
+
+Hit **Impact** and the week reorders itself. **Longest** and **Tokens** are there too when
+you want to know where the time or the spend went.
+
 ![A week expanded, each session showing its score and the pull requests and tickets it produced](docs/week.png)
+
+### Everything behind a session
+
+Click any card and it opens: the repo and branch, how much of that session was actually at
+the keyboard versus elapsed, how many turns it took, the token split, and the full thing
+you originally asked for.
 
 ![A single session opened, showing the repo and branch, time at the keyboard against elapsed time, turns, and the token split](docs/card.png)
 

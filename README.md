@@ -1,6 +1,6 @@
 # standup
 
-**WTF did I ship last week?**
+**WT\* did I just ship?**
 
 If you run a few Claude Code sessions a day, you genuinely cannot remember. `standup`
 reads the transcripts you already have on disk and turns them into one page: every

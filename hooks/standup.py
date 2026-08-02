@@ -1317,7 +1317,7 @@ def cmd_report(argv: list[str]) -> int:
 
     body = f"""{SPRITE}<div class="wrap">
 <header class="rise" style="--i:0">
-<h1><em class="wt">WT*</em> did I <span>ship</span>?</h1>
+<h1><em class="wt">WT*</em> did I just <span>ship</span>?</h1>
 <p class="sub">Last {weeks} weeks &middot; {span_days} days of history &middot; updated {datetime.now():%a %-d %b, %H:%M}</p>
 </header>
 <div class="tiles rise" style="--i:1">

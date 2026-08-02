@@ -786,8 +786,14 @@ details[open]>.recap,details[open]>.cards{animation:rise .3s cubic-bezier(.2,0,0
 .more .bd span{background:var(--chip);border:1px solid var(--line);border-radius:6px;
  padding:3px 8px;font-size:11px;color:var(--muted);font-weight:600}
 .more .bd b{color:var(--accent);font-weight:700}
-.card .top{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
-.card .name{font-weight:650;font-size:14.5px;letter-spacing:-.01em;text-wrap:balance}
+/* flex-start, not baseline: the hide button holds only an SVG, so its baseline is the
+   bottom margin edge and it floats above the pill it sits beside. */
+.card .top{display:flex;align-items:flex-start;gap:12px}
+.card .name{flex:1;min-width:0;font-weight:650;font-size:14.5px;letter-spacing:-.01em;
+ line-height:1.4;text-wrap:balance}
+/* One cluster so the controls share an edge and the pair aligns as a unit. The nudge
+   sits them on the title's first line rather than the top of its line box. */
+.card .act{flex:none;display:flex;align-items:center;gap:6px;margin-top:-1px}
 /* A pill weighted by magnitude: faint when nothing shipped, filled and haloed when
    plenty did. min-width keeps one and three digit scores on the same optical edge. */
 .card .score{flex:none;min-width:32px;text-align:center;font-size:11.5px;font-weight:700;
@@ -1380,11 +1386,11 @@ def cmd_report(argv: list[str]) -> int:
                 f'data-impact="{score}" data-min="{mins}" data-tok="{tok}" '
                 f'data-sid="{html.escape(r.get("session_id") or "")}">'
                 f'<div class="top"><span class="name">{html.escape(name)}</span>'
-                f'<span class="score {_score_tier(score)}" title="{why}">{score}</span>'
+                f'<span class="act"><span class="score {_score_tier(score)}" title="{why}">{score}</span>'
                 '<button type="button" class="hide" title="Hide this session">'
                 '<svg class="ico gx" aria-hidden="true"><use href="#i-x"/></svg>'
                 '<svg class="ico gu" aria-hidden="true"><use href="#i-undo"/></svg>'
-                "</button></div>"
+                "</button></span></div>"
                 + (f'<p class="ask">{html.escape(ask)}</p>' if ask else "")
                 + shots
                 + f'<div class="foot">{"".join(chips)}</div>'

@@ -684,7 +684,8 @@ h2{font-size:11.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--fa
 .ghost:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .sortbtn{position:relative;z-index:1;appearance:none;border:0;background:transparent;
  color:var(--muted);cursor:pointer;font:600 12px/1 inherit;letter-spacing:.01em;
- padding:8px 14px;border-radius:8px;transition:color .25s var(--ease)}
+ display:inline-flex;align-items:center;gap:6px;padding:8px 13px;border-radius:8px;
+ transition:color .25s var(--ease)}
 .sortbtn::after{content:"";position:absolute;inset:-6px 0}
 .sortbtn:hover{color:var(--fg)}
 .sortbtn.on{color:#fff}
@@ -796,7 +797,8 @@ details[open]>.recap,details[open]>.cards{animation:rise .3s cubic-bezier(.2,0,0
 .card .act{flex:none;display:flex;align-items:center;gap:6px;margin-top:-1px}
 /* A pill weighted by magnitude: faint when nothing shipped, filled and haloed when
    plenty did. min-width keeps one and three digit scores on the same optical edge. */
-.card .score{flex:none;min-width:32px;text-align:center;font-size:11.5px;font-weight:700;
+.card .score{flex:none;display:inline-flex;align-items:center;justify-content:center;gap:4px;
+ min-width:44px;font-size:11.5px;font-weight:700;
  line-height:1;padding:6px 9px;border-radius:999px;font-variant-numeric:tabular-nums;
  border:1px solid transparent;
  transition:background-color .3s var(--ease),color .3s var(--ease),box-shadow .3s var(--ease)}
@@ -849,6 +851,11 @@ a{color:var(--accent);text-decoration:none}
  color:var(--accent);font-weight:600;border:1px solid var(--line);
  transition-property:background-color,border-color,transform;transition-duration:.15s}
 .chip .ico{width:13px;height:13px;flex:none;fill:currentColor}
+/* Outline icons: supplied here, not as attributes, so .ico's fill cannot win. */
+.ico.ln{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.sortbtn .ico{width:13px;height:13px;flex:none;fill:currentColor}
+/* The bolt reads high and right in its box, so it is nudged back optically. */
+.card .score .ico{width:10px;height:10px;flex:none;fill:currentColor;margin-top:.5px}
 /* Visible chip is ~31px tall; bleed 5px per side to clear 40px without colliding. */
 a.chip::after{content:"";position:absolute;inset:-5px}
 a.chip:hover{background:var(--card-hi);border-color:var(--brand)}
@@ -955,7 +962,19 @@ SPRITE = (
     "1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 "
     "0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 "
     '1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z"/>'
-    "</symbol></svg>"
+    "</symbol>"
+    # Outline icons carry no fill/stroke attributes: the .ln class supplies them, because
+    # CSS beats presentation attributes and .ico{fill:currentColor} would fill them solid.
+    '<symbol id="i-bolt" viewBox="0 0 16 16"><path d="M9.6 1 3 9.3h3.7L6.1 15l6.6-8.3H9L9.6 1Z"/></symbol>'
+    '<symbol id="i-clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/>'
+    '<path d="M8 4.3V8l2.7 1.7"/></symbol>'
+    '<symbol id="i-hour" viewBox="0 0 16 16"><path d="M4.3 1.9h7.4M4.3 14.1h7.4'
+    "M5.4 1.9v2.3c0 1.9 2.6 2.6 2.6 3.8s-2.6 1.9-2.6 3.8v2.3"
+    'M10.6 1.9v2.3c0 1.9-2.6 2.6-2.6 3.8s2.6 1.9 2.6 3.8v2.3"/></symbol>'
+    '<symbol id="i-stack" viewBox="0 0 16 16"><ellipse cx="8" cy="4.2" rx="5.2" ry="2.3"/>'
+    '<path d="M2.8 4.2v7.6c0 1.27 2.33 2.3 5.2 2.3s5.2-1.03 5.2-2.3V4.2"/>'
+    '<path d="M2.8 8c0 1.27 2.33 2.3 5.2 2.3S13.2 9.27 13.2 8"/></symbol>'
+    "</svg>"
 )
 
 
@@ -1386,7 +1405,7 @@ def cmd_report(argv: list[str]) -> int:
                 f'data-impact="{score}" data-min="{mins}" data-tok="{tok}" '
                 f'data-sid="{html.escape(r.get("session_id") or "")}">'
                 f'<div class="top"><span class="name">{html.escape(name)}</span>'
-                f'<span class="act"><span class="score {_score_tier(score)}" title="{why}">{score}</span>'
+                f'<span class="act"><span class="score {_score_tier(score)}" title="{why}"><svg class="ico" aria-hidden="true"><use href="#i-bolt"/></svg>{score}</span>'
                 '<button type="button" class="hide" title="Hide this session">'
                 '<svg class="ico gx" aria-hidden="true"><use href="#i-x"/></svg>'
                 '<svg class="ico gu" aria-hidden="true"><use href="#i-undo"/></svg>'
@@ -1463,10 +1482,10 @@ which tickets you touched, what you actually asked the agent. Walk into standup 
     <button type="button" class="ghost hiddenbtn" aria-pressed="false" hidden>Hidden 0</button>
     <div class="sorts" role="group" aria-label="Sort sessions within each week">
       <span class="thumb" aria-hidden="true"></span>
-      <button type="button" class="sortbtn on" data-k="ts">Recent</button>
-      <button type="button" class="sortbtn" data-k="impact">Impact</button>
-      <button type="button" class="sortbtn" data-k="min">Longest</button>
-      <button type="button" class="sortbtn" data-k="tok">Tokens</button>
+      <button type="button" class="sortbtn on" data-k="ts"><svg class="ico ln" aria-hidden="true"><use href="#i-clock"/></svg>Recent</button>
+      <button type="button" class="sortbtn" data-k="impact"><svg class="ico" aria-hidden="true"><use href="#i-bolt"/></svg>Impact</button>
+      <button type="button" class="sortbtn" data-k="min"><svg class="ico ln" aria-hidden="true"><use href="#i-hour"/></svg>Longest</button>
+      <button type="button" class="sortbtn" data-k="tok"><svg class="ico ln" aria-hidden="true"><use href="#i-stack"/></svg>Tokens</button>
     </div>
     <span class="pop-host tipinfo" tabindex="0" role="note" aria-label="How impact is scored">
       <b aria-hidden="true">?</b>

@@ -99,6 +99,30 @@ you originally asked for.
 
 ![A single session opened, showing the repo and branch, time at the keyboard against elapsed time, turns, and the token split](docs/card.png)
 
+## Paste it into standup
+
+The page is for you. This is for everyone else:
+
+```bash
+python3 ~/.claude/hooks/standup.py say --copy
+```
+
+```
+Since Sun 2 Aug
+- idempotent payment retries (payments-api#482, #484, ENG-4412)
+- checkout p95 down to 380ms (web-app#1291, ENG-4402)
+- partition the sessions table (platform#908, #911, ENG-4380)
+Plus 4 smaller sessions.
+```
+
+Only sessions that produced a pull request or touched a ticket get a line. The rest are
+counted, because a standup with twenty bullets is one nobody reads. `--days N` widens the
+window, `--copy` puts it on your clipboard, `--links` prints full URLs instead of short
+refs.
+
+It contains titles, PRs and tickets, never your prompts, so unlike the page this one is
+safe to paste in a channel.
+
 ## Settings
 
 Optional. Create `~/.claude/standup/config.json`:

@@ -7,6 +7,8 @@ Verbs:
   backfill [--force] Read every transcript already on disk; --force re-reads known sessions.
   report [opts]     Render the history as a self-contained HTML page.
                     --weeks N, --out PATH, --summaries (regenerate week recaps and card text).
+  say [opts]        Print recent work as text, ready to paste into standup.
+                    --days N (default 1), --copy, --links.
 
 Data lives in ~/.claude/standup/. The file is append-only JSONL and readers keep the
 last entry per session id, so re-recording a session (ended twice, or a backfill over
@@ -294,6 +296,22 @@ def _self_check() -> None:
     # The tool must never ingest its own summary runs, in either direction.
     assert _is_self_generated(_polish_prompt([{"session_id": "x", "started_at": "", "title": "t"}]))
     assert not _is_self_generated("fix the login bug")
+
+    # The pasteable digest lists only what shipped and counts the rest.
+    day = datetime(2026, 8, 1, tzinfo=timezone.utc)
+    assert _say([], day).startswith("Nothing recorded since")
+    said = _say([
+        {"session_id": "a", "title": "fix the retry path", "minutes": 60, "turns": 20,
+         "prs": [{"repo": "acme/api", "number": 7, "url": "https://x/7"},
+                 {"repo": "acme/api", "number": 9, "url": "https://x/9"}],
+         "tickets": ["ENG-1"]},
+        {"session_id": "b", "title": "just a question", "minutes": 5, "turns": 2,
+         "prs": [], "tickets": []},
+    ], day)
+    assert "- fix the retry path (acme/api#7, #9, ENG-1)" not in said, said
+    assert "- fix the retry path (api#7, #9, ENG-1)" in said, said
+    # A session with nothing to show is counted, never given its own bullet.
+    assert "just a question" not in said and "Plus 1 smaller session." in said, said
 
     assert _pop("2 PRs", "") == "<b>2 PRs</b>"
     assert 'class="pop"' in _pop("2 PRs", "<a></a>")
@@ -1331,6 +1349,89 @@ def _pop(label: str, rows: str) -> str:
     return f'<span class="pop-host" tabindex="0"><b>{label}</b><span class="pop">{rows}</span></span>'
 
 
+def _polished_titles() -> dict[str, str]:
+    """Rewritten titles from the summaries cache, when they exist."""
+    try:
+        cache = json.loads(SUMMARIES.read_text())
+    except (OSError, ValueError):
+        return {}
+    out: dict[str, str] = {}
+    for entry in cache.values() if isinstance(cache, dict) else []:
+        if not isinstance(entry, dict):
+            continue
+        for sid, card in (entry.get("cards") or {}).items():
+            if isinstance(card, dict) and card.get("title"):
+                out[sid] = card["title"]
+    return out
+
+
+def _say(rows: list[dict], since: datetime, links: bool = False) -> str:
+    """A summary you can paste straight into standup.
+
+    Only sessions that produced a PR or touched a ticket get a line of their own. The
+    rest are counted, not listed: a standup with twenty bullets is one nobody reads.
+    """
+    if not rows:
+        return f"Nothing recorded since {since:%a %-d %b}."
+
+    titles = _polished_titles()
+    ranked = sorted(rows, key=_impact, reverse=True)
+    shipped = [r for r in ranked if r.get("prs") or r.get("tickets")]
+    quiet = [r for r in ranked if r not in shipped]
+
+    lines = [f"Since {since:%a %-d %b}"]
+    for r in shipped:
+        name = titles.get(r.get("session_id", "")) or _tidy_ask(r.get("title") or "untitled")
+        refs = []
+        by_repo: dict[str, list[int]] = defaultdict(list)
+        for p in r.get("prs", []):
+            if links and p.get("url"):
+                refs.append(p["url"])
+            else:
+                by_repo[str(p.get("repo", "")).split("/")[-1]].append(p.get("number"))
+        for repo, nums in by_repo.items():
+            refs.append(f"{repo}#" + ", #".join(str(n) for n in nums))
+        refs += list(r.get("tickets", []))
+        # A session that name-dropped nine tickets should not eat the whole digest.
+        if len(refs) > 4:
+            refs = refs[:4] + [f"+{len(refs) - 4} more"]
+        lines.append(f"- {name}" + (f" ({', '.join(refs)})" if refs else ""))
+
+    if quiet:
+        lines.append(f"Plus {len(quiet)} smaller session{'s' if len(quiet) != 1 else ''}.")
+    return "\n".join(lines)
+
+
+def cmd_say(argv: list[str]) -> int:
+    """Print recent work as text. The last mile: the standup itself happens in chat."""
+    days = 1
+    for i, a in enumerate(argv):
+        if a == "--days" and i + 1 < len(argv):
+            try:
+                days = max(0, int(argv[i + 1]))
+            except ValueError:
+                pass
+
+    midnight = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
+    since = midnight - timedelta(days=days)
+
+    rows = []
+    for r in load():
+        try:
+            when = datetime.fromisoformat(r["started_at"].replace("Z", "+00:00")).astimezone()
+        except (KeyError, ValueError, AttributeError):
+            continue
+        if when >= since:
+            rows.append(r)
+
+    text = _say(rows, since, links="--links" in argv)
+    print(text)
+    if "--copy" in argv and sys.platform == "darwin":
+        subprocess.run(["pbcopy"], input=text, text=True, check=False)
+        print("(copied to clipboard)", file=sys.stderr)
+    return 0
+
+
 def cmd_report(argv: list[str]) -> int:
     weeks = 8
     out = PAGE
@@ -1708,6 +1809,8 @@ def main() -> int:
         return cmd_install()
     if verb == "report":
         return cmd_report(sys.argv[2:])
+    if verb == "say":
+        return cmd_say(sys.argv[2:])
     if verb == "self-check":
         _self_check()
         return 0

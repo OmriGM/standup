@@ -23,5 +23,9 @@ Arguments passed to this command: `$ARGUMENTS`
 3. Report back in one line: how many weeks and sessions the page covers, and whether
    summaries were regenerated. Do not paste the page contents into the conversation.
 
-If the ledger is empty, run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/standup.py" backfill`
+To print a paste-ready summary instead of rebuilding the page, run
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/standup.py" say --copy` and show the user the
+output verbatim so they can paste it.
+
+If the history is empty, run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/standup.py" backfill`
 first to seed it from the transcripts already on disk, then report again.

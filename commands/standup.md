@@ -1,31 +1,37 @@
 ---
 name: standup
-description: Rebuild the standup page from your Claude Code history and open it
+description: Rebuild the standup page, or print a paste-ready summary of recent work
 ---
 
-Rebuild the standup page and open it in the browser.
+Arguments: `$ARGUMENTS`
 
-Arguments passed to this command: `$ARGUMENTS`
+The script takes a verb first. Pick the right one rather than appending the arguments to
+a verb the user did not ask for.
 
-1. Run the reporter, forwarding any arguments the user gave:
+**If the arguments begin with a verb** (`say`, `report`, `backfill`, `install`), pass them
+straight through, since the script dispatches on the first argument:
 
-   ```
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/standup.py" report $ARGUMENTS
-   ```
+```
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/standup.py" $ARGUMENTS
+```
 
-   Useful flags: `--summaries` regenerates the per-week recap and the rewritten card
-   titles (one `claude -p` call per stale week, so it takes a minute and is the only
-   part that talks to a model). `--weeks N` changes how far back the page goes.
+**Otherwise** treat them as flags for the page and prefix the verb yourself:
 
-2. The command prints the path it wrote. Open it with `open` on macOS or `xdg-open`
-   on Linux.
+```
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/standup.py" report $ARGUMENTS
+```
 
-3. Report back in one line: how many weeks and sessions the page covers, and whether
-   summaries were regenerated. Do not paste the page contents into the conversation.
+## After it runs
 
-To print a paste-ready summary instead of rebuilding the page, run
-`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/standup.py" say --copy` and show the user the
-output verbatim so they can paste it.
+**`say`** prints a summary meant for a human to paste into chat. Show it back verbatim in
+a code block and say nothing else about it. Add `--copy` if the user wants it on the
+clipboard, `--days N` to widen the window past the default of one day.
 
-If the history is empty, run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/standup.py" backfill`
-first to seed it from the transcripts already on disk, then report again.
+**`report`** prints the path it wrote. Open it with `open` on macOS or `xdg-open` on
+Linux, then report in one line how many weeks and sessions the page covers and whether
+summaries were regenerated. Never paste the page contents into the conversation.
+`--summaries` regenerates the weekly recaps and card titles, which is the only part that
+calls a model, so mention that it takes a minute.
+
+If the history is empty, run `backfill` first to seed it from the transcripts already on
+disk, then run the original verb again.
